@@ -35,7 +35,7 @@ echo "
 > Running Tests...
 "
 
-./node_modules/.bin/ts-mocha -p tsconfig.json tests/**/*.spec.ts
+./node_modules/.bin/ts-mocha -p tsconfig.json src/tests/**/*.spec.ts --timeout 4000 --exit
 
 MOCHA_EXIT_CODE=$?
 

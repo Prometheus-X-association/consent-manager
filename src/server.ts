@@ -9,7 +9,7 @@ import contractsSimulatedRouter from "./simulated/contract/router";
 import { initSession } from "./middleware/session";
 
 export const startServer = (testPort?: number) => {
-  loadMongoose();
+  if (!testPort) loadMongoose();
 
   const app: Application = express();
   const port = testPort || process.env.PORT || 3000;

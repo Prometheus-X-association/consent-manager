@@ -22,7 +22,8 @@ export const getParticipantById = async (
       PARTICIPANT_SELECTION
     );
 
-    if (!participant) throw new NotFoundError("Participant not found");
+    if (!participant)
+      return res.status(404).json({ error: "participant not found" });
     res.json(participant);
   } catch (err) {
     next(err);
@@ -145,7 +146,8 @@ export const loginParticipant = async (
     const { clientID, clientSecret } = req.body;
     const participant = await Participant.findOne({ clientID, clientSecret });
 
-    if (!participant) throw new NotFoundError("Participant not found");
+    if (!participant)
+      return res.status(404).json({ error: "participant not found" });
 
     const jwt = issueJwt(participant);
 

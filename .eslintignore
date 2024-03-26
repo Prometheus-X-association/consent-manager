@@ -10,3 +10,5 @@ pnpm-lock.yaml
 reference-models/
 scripts/
 docs
+docker
+docker-compose.yml

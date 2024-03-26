@@ -69,7 +69,6 @@ export const getPrivacyNotices = async (
 ) => {
   try {
     let { providerId, consumerId } = req.params;
-
     const privacyNotices = await getPrivacyNoticesFromContractsBetweenParties(
       providerId,
       consumerId
@@ -733,7 +732,7 @@ export const verifyToken = async (
   }
 };
 
-const encryptPayloadAndKey = (payload: object) => {
+export const encryptPayloadAndKey = (payload: object) => {
   try {
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv(
