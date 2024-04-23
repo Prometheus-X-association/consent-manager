@@ -167,12 +167,12 @@ describe("Consent Controller Tests", () => {
     it("should get available exchanges", async () => {
       mockAxios
         .onGet(
-          "http://localhost:8888/bilaterals/for/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJi?hasSigned=true"
+          `${process.env.CONTRACT_SERVICE_BASE_URL}/bilaterals/for/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJi?hasSigned=true`
         )
         .reply(200, { contracts: [] });
       mockAxios
         .onGet(
-          "http://localhost:8888/contracts/for/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJi?hasSigned=true"
+          `${process.env.CONTRACT_SERVICE_BASE_URL}/contracts/for/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJi?hasSigned=true`
         )
         .reply(200, {
           contracts: [
@@ -274,26 +274,26 @@ describe("Consent Controller Tests", () => {
           "https://api.test.com/v1/catalog/serviceofferings/65e04da4b37bfc192ddcbdd1"
         )
         .reply(200, {
-          "@context": "http://host.docker.internal:4040/v1/serviceoffering",
+          "@context": "https://host.docker.internal:4040/v1/serviceoffering",
           "@type": "ServiceOffering",
           _id: "660432088020cd0ef5427e1b",
           name: "test no user interacton",
           providedBy: "6564abb5d853e8e05b132057",
           aggregationOf: [
-            "http://host.docker.internal:4040/v1/catalog/dataresources/65e71e4174f9e9026bd5dc41",
+            "https://host.docker.internal:4040/v1/catalog/dataresources/65e71e4174f9e9026bd5dc41",
           ],
           dependsOn: [],
           policy: [
             {
               "@context": {
-                xsd: "http://www.w3.org/2001/XMLSchema#",
+                xsd: "https://www.w3.org/2001/XMLSchema#",
                 description: {
                   "@id": "https://schema.org/description",
                   "@container": "@language",
                 },
               },
               "@id":
-                "http://localhost:3000/static/references/rules/rule-access-4.json",
+                "https://localhost:3000/static/references/rules/rule-access-4.json",
               title: {
                 "@type": "xsd/string",
                 "@value": "Count",
@@ -331,17 +331,17 @@ describe("Consent Controller Tests", () => {
           description: "des",
           keywords: [],
           dataResources: [
-            "http://host.docker.internal:4040/v1/catalog/dataresources/65e71e4174f9e9026bd5dc41",
+            "https://host.docker.internal:4040/v1/catalog/dataresources/65e71e4174f9e9026bd5dc41",
           ],
           softwareResources: [],
           archived: false,
           visible: true,
           pricing: "180",
           pricingModel: [
-            "http://localhost:3000/static/references/pricing-model/dataBased.json",
+            "https://localhost:3000/static/references/pricing-model/dataBased.json",
           ],
           businessModel: [
-            "http://localhost:3000/static/references/business-model/subscription.json",
+            "https://localhost:3000/static/references/business-model/subscription.json",
           ],
           maximumConsumption: "",
           maximumPerformance: "",
@@ -359,26 +359,26 @@ describe("Consent Controller Tests", () => {
           "https://api.test.com/v1/catalog/serviceofferings/65e04da4b37bfc192ddcbdd0"
         )
         .reply(200, {
-          "@context": "http://host.docker.internal:4040/v1/serviceoffering",
+          "@context": "https://host.docker.internal:4040/v1/serviceoffering",
           "@type": "ServiceOffering",
           _id: "65e7380074f9e9026bd5edc8",
           name: "CONSUMER PAYLOAD BIL",
           providedBy: "6564aaebd853e8e05b1317c1",
           aggregationOf: [
-            "http://api.com/v1/catalog/softwareresources/65e737ed74f9e9026bd5edbb",
+            "https://api.com/v1/catalog/softwareresources/65e737ed74f9e9026bd5edbb",
           ],
           dependsOn: [],
           policy: [
             {
               "@context": {
-                xsd: "http://www.w3.org/2001/XMLSchema#",
+                xsd: "https://www.w3.org/2001/XMLSchema#",
                 description: {
                   "@id": "https://schema.org/description",
                   "@container": "@language",
                 },
               },
               "@id":
-                "http://localhost:3000/static/references/rules/rule-access-4.json",
+                "https://localhost:3000/static/references/rules/rule-access-4.json",
               title: {
                 "@type": "xsd/string",
                 "@value": "Count",
@@ -417,17 +417,17 @@ describe("Consent Controller Tests", () => {
           keywords: [],
           dataResources: [],
           softwareResources: [
-            "http://api.com/v1/catalog/softwareresources/65e737ed74f9e9026bd5edbb",
+            "https://api.com/v1/catalog/softwareresources/65e737ed74f9e9026bd5edbb",
           ],
           archived: false,
           visible: true,
           pricing: "150",
           pricingModel: [
-            "http://localhost:3000/static/references/pricing-model/valueBased.json",
+            "https://localhost:3000/static/references/pricing-model/valueBased.json",
           ],
           businessModel: [
             "https://registry.visionstrust.com/static/references/business-model/freemium.json",
-            "http://localhost:3000/static/references/business-model/subscription.json",
+            "https://localhost:3000/static/references/business-model/subscription.json",
           ],
           maximumConsumption: "",
           maximumPerformance: "",
@@ -442,12 +442,12 @@ describe("Consent Controller Tests", () => {
         });
       mockAxios
         .onGet(
-          "http://localhost:8888/bilaterals/for/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJh?hasSigned=true"
+          `${process.env.CONTRACT_SERVICE_BASE_URL}/bilaterals/for/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJh?hasSigned=true`
         )
         .reply(200, { contracts: [] });
       mockAxios
         .onGet(
-          "http://localhost:8888/contracts/for/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJh?hasSigned=true"
+          `${process.env.CONTRACT_SERVICE_BASE_URL}/contracts/for/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJh?hasSigned=true`
         )
         .reply(200, {
           contracts: [
@@ -591,10 +591,10 @@ describe("Consent Controller Tests", () => {
         });
       mockAxios
         .onGet(
-          "http://api.com/v1/catalog/softwareresources/65e737ed74f9e9026bd5edbb"
+          "https://api.com/v1/catalog/softwareresources/65e737ed74f9e9026bd5edbb"
         )
         .reply(200, {
-          "@context": "http://host.docker.internal:4040/v1/softwareresource",
+          "@context": "https://host.docker.internal:4040/v1/softwareresource",
           "@type": "SoftwareResource",
           _id: "65e737ed74f9e9026bd5edbb",
           providedBy: "6564aaebd853e8e05b1317c1",
@@ -606,14 +606,14 @@ describe("Consent Controller Tests", () => {
           policy: [
             {
               "@context": {
-                xsd: "http://www.w3.org/2001/XMLSchema#",
+                xsd: "https://www.w3.org/2001/XMLSchema#",
                 description: {
                   "@id": "https://schema.org/description",
                   "@container": "@language",
                 },
               },
               "@id":
-                "http://localhost:3000/static/references/rules/rule-access-4.json",
+                "https://localhost:3000/static/references/rules/rule-access-4.json",
               title: {
                 "@type": "xsd/string",
                 "@value": "Count",
@@ -664,7 +664,7 @@ describe("Consent Controller Tests", () => {
             _id: "65e737ed74f9e9026bd5edc3",
             resourceID: "65e737ed74f9e9026bd5edbb",
             type: "REST",
-            url: "http://host.docker.internal:3332/users",
+            url: "https://host.docker.internal:3332/users",
             method: "none",
             credential: "",
             createdAt: "2024-03-05T15:19:09.429Z",
@@ -731,7 +731,6 @@ describe("Consent Controller Tests", () => {
       const response = await supertest(serverInstance.app)
         .post(`/v1/consents/${consentId}/data-exchange`)
         .set("x-user-key", providerUserIdentifier);
-      consent = response.body.consent;
       expect(response.status).to.be.equal(200);
       expect(response.body).to.have.property(
         "message",

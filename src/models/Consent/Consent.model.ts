@@ -83,7 +83,7 @@ schema.methods.isValid = function () {
 // how and where participant identity will be referenced
 schema.methods.getParticipants = function () {
   const jsonData = JSON.parse(this.jsonld);
-  if (!jsonData.permission || !jsonData.permission.length)
+  if (!jsonData.permission)
     throw new NotFoundError(
       "One or more participants were not found in the consent"
     );

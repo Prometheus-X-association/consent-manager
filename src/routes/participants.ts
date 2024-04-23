@@ -29,8 +29,6 @@ r.get("/:id", getParticipantById);
 r.post("/", setJoiValidationSchema, validatePayload, registerParticipant);
 r.post("/login", loginParticipant);
 
-// r.post("/sync-public-key", exportPublicKeyToParticipants);
-
 r.use(verifyParticipantJWT);
 r.delete("/me", deleteParticipant);
 

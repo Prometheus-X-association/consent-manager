@@ -44,7 +44,7 @@ r.post("/token", async (req, res) => {
   }
 
   const accessToken = generateAccessToken(user, validScopes);
-  const refreshToken = generateRefreshToken(user);
+  const refreshToken = await generateRefreshToken(user);
 
   const response: any = {
     access_token: accessToken,

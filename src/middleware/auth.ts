@@ -18,7 +18,12 @@ export const verifyParticipantJWT = async (
   }
 
   const authHeader = req.headers.authorization;
-  if (!authHeader || !authHeader.startsWith("Bearer ")) {
+  if (!authHeader) {
+    return res
+      .status(401)
+      .json({ message: "Authorization header missing or invalid" });
+  }
+  if (!authHeader.startsWith("Bearer ")) {
     return res
       .status(401)
       .json({ message: "Authorization header missing or invalid" });
@@ -177,7 +182,12 @@ export const verifyUserJWT = async (
     }
   } else {
     const authHeader = req.headers.authorization;
-    if (!authHeader || !authHeader.startsWith("Bearer ")) {
+    if (!authHeader) {
+      return res
+        .status(401)
+        .json({ message: "Authorization header missing or invalid" });
+    }
+    if (!authHeader.startsWith("Bearer ")) {
       return res
         .status(401)
         .json({ message: "Authorization header missing or invalid" });

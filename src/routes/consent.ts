@@ -13,12 +13,7 @@ import {
   triggerDataExchange,
   verifyToken,
 } from "../controllers/consentsController";
-import {
-  verifyUserKey,
-  verifyParticipantJWT,
-  verifyUserJWT,
-} from "../middleware/auth";
-// import { checkIDFormatMiddleware } from "../middleware/objectIdFormatCheck";
+import { verifyUserKey, verifyParticipantJWT } from "../middleware/auth";
 import { setUserIdForParticipant } from "../middleware/participantsMiddleware";
 const r: Router = Router();
 

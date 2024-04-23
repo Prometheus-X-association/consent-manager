@@ -24,6 +24,4 @@ export const globalErrorHandler = (
           : undefined,
     });
   }
-
-  next(err);
 };

@@ -27,15 +27,15 @@ export class ConsentGenerator {
           phone: "+336123456789",
         },
       ],
-      policyUrl: "http://example.com/policy",
+      policyUrl: "https://example.com/policy",
       services: [
         {
           service: "Dummy service skills analytics",
           purposes: [
             {
-              serviceOffering: "http://dummy-service-offering/catalog/1",
+              serviceOffering: "https://dummy-service-offering/catalog/1",
               resource:
-                "http://dummy-service-offering/catalog/softwareresource/1",
+                "https://dummy-service-offering/catalog/softwareresource/1",
               purpose: "To provide analysis on skills",
               purposeCategory: [],
               consentType: "EXPLICIT",

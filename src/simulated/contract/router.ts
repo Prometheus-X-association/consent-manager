@@ -7,17 +7,17 @@ const r: Router = Router();
 
 const Contracts = [
   {
-    "@context": "http://www.w3.org/ns/odrl.jsonld",
+    "@context": "https://www.w3.org/ns/odrl.jsonld",
     "@type": "Policy",
     "@id": "DID:123",
-    uri: "http://example.com/contract/666",
+    uri: "https://example.com/contract/666",
     uid: "policy-12345",
-    profile: "http://example.com/profiles/data-exchange",
-    policyUrl: "http://example.com/policies/policy-abc",
+    profile: "https://example.com/profiles/data-exchange",
+    policyUrl: "https://example.com/policies/policy-abc",
     permission: [
       {
         "@type": "Offer",
-        target: "http://example.com/data/resource-1",
+        target: "https://example.com/data/resource-1",
         assigner:
           process.env.FEDERATED_APPLICATION_IDENTIFIER +
           "64f1df5db2face281e55d8fa",
@@ -25,11 +25,11 @@ const Contracts = [
           process.env.FEDERATED_APPLICATION_IDENTIFIER +
           "64f1df7452a3febe2b054b38",
         action: "read",
-        data: "http://example.com/data/personal-info",
+        data: "https://example.com/data/personal-info",
         constraint: [
           {
             "@type": "spatial",
-            scope: "http://example.com/geolocation/eu",
+            scope: "https://example.com/geolocation/eu",
             relation: "within",
           },
           {
@@ -44,15 +44,15 @@ const Contracts = [
     data: [
       {
         uid: "data-1",
-        type: "http://example.com/datatypes/personal-info",
-        purpose: "http://example.com/purposes/user-authentication",
+        type: "https://example.com/datatypes/personal-info",
+        purpose: "https://example.com/purposes/user-authentication",
       },
     ],
     purpose: [
       {
         uid: "purpose-1",
         purpose: "Demo purpose",
-        action: "http://example.com/actions/authenticate",
+        action: "https://example.com/actions/authenticate",
         assigner:
           process.env.FEDERATED_APPLICATION_IDENTIFIER +
           "64ef1907b8dfb749e4565640",
@@ -80,17 +80,17 @@ const Contracts = [
     spiCat: ["1 - Biographical", "7 - Financial"],
   },
   {
-    "@context": "http://www.w3.org/ns/odrl.jsonld",
+    "@context": "https://www.w3.org/ns/odrl.jsonld",
     "@type": "Policy",
-    uri: "http://example.com/contract/666",
+    uri: "https://example.com/contract/666",
     uid: "policy-67890",
-    profile: "http://example.com/profiles/data-exchange",
-    policyUrl: "http://example.com/policies/policy-123",
+    profile: "https://example.com/profiles/data-exchange",
+    policyUrl: "https://example.com/policies/policy-123",
     permission: [
       {
         "@type": "Offer",
-        target: "http://example.com/data/resource-2",
-        assigner: "http://example.com/parties/data-provider",
+        target: "https://example.com/data/resource-2",
+        assigner: "https://example.com/parties/data-provider",
         assignee: "http://example.com/parties/data-consumer",
         action: "write",
         data: "http://example.com/data/sensitive-info",

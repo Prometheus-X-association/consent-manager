@@ -2,7 +2,7 @@ import { IUser } from "../../types/models";
 
 export const userToSelfDescription = (user: IUser) => {
   const jsonLd = {
-    "@context": "http://schema.org",
+    "@context": "https://schema.org",
     "@type": "Person",
     name: `${user.firstName} ${user.lastName}`,
     email: user.email,

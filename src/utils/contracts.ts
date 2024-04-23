@@ -164,8 +164,9 @@ export const getDataFromPoliciesInEcosystemContract = async (
     : contract.serviceOfferings?.map((so) => so.policies);
 
   if (policies.length > 0) {
-    const combinedPolicies = [...policies].reduce((acc, curr) =>
-      acc.concat(curr)
+    const combinedPolicies = [...policies].reduce(
+      (acc, curr, currentIndex) => acc.concat(curr),
+      []
     );
 
     const filteredPolicies = combinedPolicies.filter(

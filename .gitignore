@@ -10,3 +10,7 @@ src/config/keys/*
 */**/logs
 local
 tarballs
+/src/Main.java
+coverage/
+.scannerwork/
+.nyc_output/

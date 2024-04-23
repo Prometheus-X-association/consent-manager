@@ -45,11 +45,11 @@ export const getUserConsents = async (
     const skip = (parseInt(page.toString()) - 1) * parseInt(limit.toString());
 
     let consents;
-    if (req.user && req.user?.id) {
+    if (req?.user?.id) {
       consents = await Consent.find({ user: req.user?.id })
         .skip(skip)
         .limit(parseInt(limit.toString()));
-    } else if (req.userIdentifier && req.userIdentifier?.id) {
+    } else if (req?.userIdentifier?.id) {
       consents = await Consent.find({
         $or: [
           { consumerUserIdentifier: req.userIdentifier?.id },
@@ -94,13 +94,13 @@ export const getPrivacyNotices = async (
       recipients: { $in: consumerId },
     }).lean();
 
-    const existingPrivacyNoticesIds = existingPrivacyNotices
-      .map((element: { contract: any }) => element.contract)
-      .sort();
+    const existingPrivacyNoticesIds = existingPrivacyNotices.map(
+      (element: { contract: any }) => element.contract
+    );
 
-    const privacyNoticesIds = privacyNotices
-      .map((element: { contract: any }) => element.contract)
-      .sort();
+    const privacyNoticesIds = privacyNotices.map(
+      (element: { contract: any }) => element.contract
+    );
 
     if (!privacyNotices && !existingPrivacyNotices)
       return res.status(404).json({ error: "No contracts found" });
@@ -192,14 +192,14 @@ export const getUserConsentById = async (
 ) => {
   try {
     let consent;
-    if (req.user && req.user?.id) {
+    if (req?.user?.id) {
       const userId = req.user?.id;
 
       consent = await Consent.findOne({
         _id: req.params.id,
         user: userId,
       });
-    } else if (req.userIdentifier && req.userIdentifier?.id) {
+    } else if (req?.userIdentifier?.id) {
       consent = await Consent.findOne({
         _id: req.params.id,
         $or: [
@@ -225,10 +225,6 @@ const findMatchingUserIdentifier = async (
     email,
     attachedParticipant: participantId,
   });
-
-  // if (!userIdentifier) {
-  //   throw new Error("User identifier not found");
-  // }
 
   return userIdentifier;
 };
@@ -464,7 +460,6 @@ export const giveConsentOnEmailValidation = async (
       consumerUser,
     } = req.query;
     const decodedDP = decodeURIComponent(dataProvider.toString());
-    const decodedDC = decodeURIComponent(dataConsumer.toString());
     const decodedPN = decodeURIComponent(privacyNotice.toString());
     let decodedData;
     let selectedData;
@@ -674,7 +669,7 @@ export const revokeConsent = async (
 ) => {
   try {
     let consent;
-    if (req.user && req.user?.id) {
+    if (req?.user?.id) {
       const userId = req.user?.id;
 
       consent = await Consent.findOne({
@@ -819,14 +814,6 @@ export const attachTokenToConsent = async (
       );
     } catch (err) {
       Logger.error({ location: "consents.attachToken", message: err.message });
-      // return res.status(424).json({
-      //   message: `an error occurred after calling the data consumer's /consent/import endpoint`,
-      //   data: {
-      //     details: {
-      //       errorMessage: err.message,
-      //     },
-      //   },
-      // });
     }
 
     return res
@@ -869,7 +856,7 @@ export const encryptPayloadAndKey = (payload: object) => {
   try {
     const iv = crypto.randomBytes(16);
     const cipher = crypto.createCipheriv(
-      "aes-256-cbc",
+      "AES-256-GCM",
       AESKey.toString().trim(),
       iv
     );

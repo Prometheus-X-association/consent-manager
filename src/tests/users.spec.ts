@@ -14,7 +14,7 @@ let participantJWT: string;
 before(async () => {
   serverInstance = startServer(9092);
 
-  const response = await supertest(serverInstance.app)
+  await supertest(serverInstance.app)
     .post(`/v1/participants`)
     .send({
       legalName: "consumer",

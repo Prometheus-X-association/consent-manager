@@ -17,7 +17,11 @@ export const startServer = (testPort?: number) => {
   app.set("view engine", "ejs");
   app.set("views", path.join(__dirname, "views"));
   app.use(express.json());
-  app.use(cors());
+  const corsOptions = {
+    origin: process.env.ORIGIN, // Compliant
+  };
+
+  app.use(cors(corsOptions));
 
   app.use(initSession());
 
