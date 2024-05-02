@@ -32,9 +32,6 @@ export class NodemailerEmailClient {
         user: user,
         pass: pass,
       },
-      tls: {
-        rejectUnauthorized: false, // To test in localhost
-      },
     });
   }
 

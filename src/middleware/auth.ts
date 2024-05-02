@@ -135,80 +135,86 @@ export const verifyUserJWT = async (
   }
 
   if (req.headers["x-user-key"]) {
-    const userIdentifier = await UserIdentifier.findById(
-      req.headers["x-user-key"]
-    ).lean();
+    await userKey(req, res, next);
+  } else {
+    bearerToken(req, res, next);
+  }
+};
 
-    if (!userIdentifier) {
-      return res.status(401).json({ message: "Invalid or expired token" });
-    }
+const userKey = async (req: Request, res: Response, next: NextFunction) => {
+  const userIdentifier = await UserIdentifier.findById(
+    req.headers["x-user-key"]
+  ).lean();
 
-    const userExisitingIdentifier = await User.findOne({
-      identifiers: {
-        $in: userIdentifier._id,
-      },
+  if (!userIdentifier) {
+    return res.status(401).json({ message: "Invalid or expired token" });
+  }
+
+  const userExisitingIdentifier = await User.findOne({
+    identifiers: {
+      $in: userIdentifier._id,
+    },
+  });
+
+  if (userExisitingIdentifier) {
+    req.userIdentifier = {
+      id: userExisitingIdentifier._id,
+    };
+    next();
+  } else {
+    const userExisitingEmail = await User.findOne({
+      email: userIdentifier.email,
     });
 
-    if (userExisitingIdentifier) {
-      req.userIdentifier = {
-        id: userExisitingIdentifier._id,
-      };
-      next();
-    } else {
-      const userExisitingEmail = await User.findOne({
-        email: userIdentifier.email,
-      });
-
-      if (!userExisitingEmail) {
-        return res
-          .status(401)
-          .json({ message: "User with email doesn't exist" });
-      }
-
-      if (
-        userExisitingEmail &&
-        !userExisitingEmail.identifiers.includes(userIdentifier?._id)
-      ) {
-        userExisitingEmail.identifiers.push(userIdentifier?._id);
-      }
-
-      await userExisitingEmail.save();
-
-      req.user = {
-        id: userExisitingEmail._id,
-      };
-
-      next();
-    }
-  } else {
-    const authHeader = req.headers.authorization;
-    if (!authHeader) {
-      return res
-        .status(401)
-        .json({ message: "Authorization header missing or invalid" });
-    }
-    if (!authHeader.startsWith("Bearer ")) {
-      return res
-        .status(401)
-        .json({ message: "Authorization header missing or invalid" });
+    if (!userExisitingEmail) {
+      return res.status(401).json({ message: "User with email doesn't exist" });
     }
 
-    const token = authHeader.slice(7);
-
-    try {
-      const decodedToken = jwt.verify(
-        token,
-        process.env.OAUTH_SECRET_KEY
-      ) as JwtPayload;
-
-      req.decodedToken = decodedToken;
-      req.user = {
-        id: decodedToken.sub,
-      };
-
-      next();
-    } catch (error) {
-      return res.status(401).json({ message: "Invalid or expired token" });
+    if (
+      userExisitingEmail &&
+      !userExisitingEmail.identifiers.includes(userIdentifier?._id)
+    ) {
+      userExisitingEmail.identifiers.push(userIdentifier?._id);
     }
+
+    await userExisitingEmail.save();
+
+    req.user = {
+      id: userExisitingEmail._id,
+    };
+
+    next();
+  }
+};
+
+const bearerToken = (req: Request, res: Response, next: NextFunction) => {
+  const authHeader = req.headers.authorization;
+  if (!authHeader) {
+    return res
+      .status(401)
+      .json({ message: "Authorization header missing or invalid" });
+  }
+  if (!authHeader.startsWith("Bearer ")) {
+    return res
+      .status(401)
+      .json({ message: "Authorization header missing or invalid" });
+  }
+
+  const token = authHeader.slice(7);
+
+  try {
+    const decodedToken = jwt.verify(
+      token,
+      process.env.OAUTH_SECRET_KEY
+    ) as JwtPayload;
+
+    req.decodedToken = decodedToken;
+    req.user = {
+      id: decodedToken.sub,
+    };
+
+    next();
+  } catch (error) {
+    return res.status(401).json({ message: "Invalid or expired token" });
   }
 };

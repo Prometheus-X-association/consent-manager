@@ -3,6 +3,7 @@ import cors from "cors";
 import { loadRoutes } from "./routes";
 import { loadMongoose } from "./config/database";
 import path from "path";
+import mongoSanitize from "express-mongo-sanitize";
 
 // Simulation
 import contractsSimulatedRouter from "./simulated/contract/router";
@@ -24,6 +25,8 @@ export const startServer = (testPort?: number) => {
   app.use(cors(corsOptions));
 
   app.use(initSession());
+
+  app.use(mongoSanitize());
 
   loadRoutes(app);
 

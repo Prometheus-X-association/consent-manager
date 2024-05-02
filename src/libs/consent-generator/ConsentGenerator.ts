@@ -6,7 +6,7 @@ import { ConsentReceipt } from "../../types";
  * Helper to generate Kantara Consent Receipts
  */
 export class ConsentGenerator {
-  static version: "KI-CR-v1.1.0";
+  static readonly version: "KI-CR-v1.1.0";
 
   /**
    * Creates a dummy consent receipt for testing purposes

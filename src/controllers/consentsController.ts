@@ -168,7 +168,9 @@ export const getPrivacyNoticeById = async (
       consumerEmail = false;
     }
 
-    const pn = await PrivacyNotice.findById(req.params.privacyNoticeId).lean();
+    const { privacyNoticeId } = req.params;
+
+    const pn = await PrivacyNotice.findById(privacyNoticeId).lean();
     if (!pn) {
       return res.status(404).json({ error: "Privacy notice not found" });
     }
@@ -192,16 +194,17 @@ export const getUserConsentById = async (
 ) => {
   try {
     let consent;
+    const consentId = req.params.id;
+
     if (req?.user?.id) {
       const userId = req.user?.id;
-
       consent = await Consent.findOne({
-        _id: req.params.id,
+        _id: consentId,
         user: userId,
       });
     } else if (req?.userIdentifier?.id) {
       consent = await Consent.findOne({
-        _id: req.params.id,
+        _id: consentId,
         $or: [
           { consumerUserIdentifier: req.userIdentifier?.id },
           { providerUserIdentifier: req.userIdentifier?.id },
@@ -1274,51 +1277,17 @@ const emailReattached = async ({
 
     // case 2.c User identifier from Provider has a user attached and user identifier from consumer has another user attached
     if (providerUser && consumerUser) {
-      if (providerUser._id !== consumerUser._id) {
-        // case 2.c1: User identifier from Provider has a user attached and user identifier from consumer has another user attached
-        // One of the users has the “manual registration” information (first name, last name etc.)
-        if (providerUser.password && !consumerUser.password) {
-          providerUser.identifiers.push(existingConsumerUserIdentifier._id);
-          await providerUser.save();
-          return {
-            message: "Ok",
-            status: 200,
-            case: "user-manual-registration-found",
-            userId: providerUser._id,
-            consumerUserIdentifier: existingConsumerUserIdentifier,
-          };
-        }
-
-        if (!providerUser.password && consumerUser.password) {
-          consumerUser.identifiers.push(providerUserIdentifier._id);
-          await consumerUser.save();
-          return {
-            message: "Ok",
-            status: 200,
-            case: "user-manual-registration-found",
-            userId: consumerUser._id,
-            consumerUserIdentifier: existingConsumerUserIdentifier,
-          };
-        }
-
-        // case 2.c2: User identifier from Provider has a user attached and user identifier from consumer has another user attached
-        // No user account have the “manual registration” information
-        if (!providerUser.password && !consumerUser.password) {
-          //delete useless user
-          await providerUser.deleteOne();
-          return sendEmail({
-            email,
-            dataConsumerId,
-            dataProviderId,
-            privacyNotice,
-            providerUserIdentifier,
-            consumerUserIdentifier: existingConsumerUserIdentifier,
-            data,
-            consumerUser: consumerUser._id,
-            triggerDataExchange,
-          });
-        }
-      }
+      providerUserAndConsumerUserExists({
+        providerUser,
+        consumerUser,
+        existingConsumerUserIdentifier,
+        providerUserIdentifier,
+        email,
+        dataConsumerId,
+        dataProviderId,
+        privacyNotice,
+        data,
+      });
     }
 
     // case 2.d None of the identifiers have a user attached
@@ -1405,4 +1374,72 @@ const sendEmail = async ({
     case: "email-validation-requested",
     status: 200,
   };
+};
+
+const providerUserAndConsumerUserExists = async ({
+  providerUser,
+  consumerUser,
+  existingConsumerUserIdentifier,
+  providerUserIdentifier,
+  email,
+  dataConsumerId,
+  dataProviderId,
+  privacyNotice,
+  data,
+}: {
+  providerUser: any;
+  consumerUser: any;
+  existingConsumerUserIdentifier: any;
+  providerUserIdentifier: any;
+  email: string;
+  dataConsumerId: string;
+  dataProviderId: string;
+  privacyNotice: any;
+  data: any;
+}) => {
+  if (providerUser._id !== consumerUser._id) {
+    // case 2.c1: User identifier from Provider has a user attached and user identifier from consumer has another user attached
+    // One of the users has the “manual registration” information (first name, last name etc.)
+    if (providerUser.password && !consumerUser.password) {
+      providerUser.identifiers.push(existingConsumerUserIdentifier._id);
+      await providerUser.save();
+      return {
+        message: "Ok",
+        status: 200,
+        case: "user-manual-registration-found",
+        userId: providerUser._id,
+        consumerUserIdentifier: existingConsumerUserIdentifier,
+      };
+    }
+
+    if (!providerUser.password && consumerUser.password) {
+      consumerUser.identifiers.push(providerUserIdentifier._id);
+      await consumerUser.save();
+      return {
+        message: "Ok",
+        status: 200,
+        case: "user-manual-registration-found",
+        userId: consumerUser._id,
+        consumerUserIdentifier: existingConsumerUserIdentifier,
+      };
+    }
+
+    // case 2.c2: User identifier from Provider has a user attached and user identifier from consumer has another user attached
+    // No user account have the “manual registration” information
+    if (!providerUser.password && !consumerUser.password) {
+      //delete useless user
+      await providerUser.deleteOne();
+      return sendEmail({
+        email,
+        dataConsumerId,
+        dataProviderId,
+        privacyNotice,
+        providerUserIdentifier,
+        consumerUserIdentifier: existingConsumerUserIdentifier,
+        data,
+        consumerUser: consumerUser._id,
+        triggerDataExchange,
+      });
+    }
+  }
 };

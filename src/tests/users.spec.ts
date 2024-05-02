@@ -154,7 +154,6 @@ describe("Users Routes Tests", () => {
         .post(`/v1/users/register`)
         .set("Authorization", participantJWT)
         .send({});
-      expect(response).to.throws;
       expect(response.status).to.be.equal(400);
       expect(response.body).to.have.property("errors");
     });

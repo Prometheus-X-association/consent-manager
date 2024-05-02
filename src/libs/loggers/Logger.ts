@@ -55,7 +55,7 @@ const customFormat = (level: string) => {
   );
 };
 
-const dailyTransportOptions = (level: string) => {
+const dailyTransportOptions = (level: "warn" | "error" | "http" | "info") => {
   return {
     filename: path.join(
       __dirname,
@@ -129,7 +129,7 @@ const DEFAULT_LOGGER_OPTIIONS: LoggerOptions = {
 };
 
 export class Logger {
-  static logger: WinstonLogger = NewWinstonLogger;
+  static readonly logger: WinstonLogger = NewWinstonLogger;
 
   static log(opts: LoggerOptions) {
     const options = this.getOptions(opts);

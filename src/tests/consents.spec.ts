@@ -1,7 +1,6 @@
 import { expect } from "chai";
 import supertest from "supertest";
 import { Application } from "express";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import { startServer } from "../server";
 import { IncomingMessage, ServerResponse } from "http";
 import * as http from "http";
@@ -677,7 +676,6 @@ describe("Consent Controller Tests", () => {
           `/v1/consents/${userId}/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJi/aHR0cHM6Ly9hcGkudGVzdC5jb20vdjEvY2F0YWxvZy9wYXJ0aWNpcGFudHMvNjU2ZGZiM2UyODJkNDdjZmE2YjY2YjJh`
         )
         .set("x-user-key", providerUserIdentifier);
-      console.log("response", response.body);
       privacyNoticeId = response.body[0]?._id;
       expect(response.status).to.be.equal(200);
       expect(response.body).to.not.be.empty;

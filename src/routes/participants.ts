@@ -5,7 +5,6 @@ import {
 } from "../middleware/joiValidation";
 import {
   deleteParticipant,
-  exportPublicKeyToParticipants,
   getAllParticipants,
   getMyParticipant,
   getParticipantByClientId,

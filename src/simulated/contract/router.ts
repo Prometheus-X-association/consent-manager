@@ -61,7 +61,6 @@ const Contracts = [
           "64ef190bb8dfb749e4565644",
 
         // Added to fit --
-        // TODO Must check coherence
         purposeCategory: ["2 - Contracted Service"],
         consentType: "EXPLICIT",
         piiCategory: [
@@ -76,7 +75,6 @@ const Contracts = [
       },
     ],
     // Added to fit KCR for demo implementation
-    // TODO Check if it should be there
     spiCat: ["1 - Biographical", "7 - Financial"],
   },
   {
@@ -91,13 +89,13 @@ const Contracts = [
         "@type": "Offer",
         target: "https://example.com/data/resource-2",
         assigner: "https://example.com/parties/data-provider",
-        assignee: "http://example.com/parties/data-consumer",
+        assignee: "https://example.com/parties/data-consumer",
         action: "write",
-        data: "http://example.com/data/sensitive-info",
+        data: "https://example.com/data/sensitive-info",
         constraint: [
           {
             "@type": "spatial",
-            scope: "http://example.com/geolocation/us",
+            scope: "https://example.com/geolocation/us",
             relation: "within",
           },
           {
@@ -112,17 +110,17 @@ const Contracts = [
     data: [
       {
         uid: "data-2",
-        type: "http://example.com/datatypes/sensitive-info",
-        purpose: "http://example.com/purposes/research",
+        type: "https://example.com/datatypes/sensitive-info",
+        purpose: "https://example.com/purposes/research",
       },
     ],
     purpose: [
       {
         uid: "purpose-2",
         purpose: "Demo purpose",
-        action: "http://example.com/actions/research-analysis",
-        assigner: "http://example.com/parties/data-provider",
-        assignee: "http://example.com/parties/data-consumer",
+        action: "https://example.com/actions/research-analysis",
+        assigner: "https://example.com/parties/data-provider",
+        assignee: "https://example.com/parties/data-consumer",
       },
     ],
   },

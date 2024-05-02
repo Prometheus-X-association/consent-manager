@@ -91,7 +91,6 @@ export const getDataFromPoliciesInBilateralContract = async (
       )
   );
 
-  //TODO: target to self-description ?
   const dataFromPermissions = policiesMatchingServiceOffering.map((policy) => {
     const result = policy.permission.map(
       () => (contract as BilateralContract)?.serviceOffering
@@ -357,7 +356,6 @@ export const validate = async (
   return res;
 };
 
-// TODO This is to be reviewed once the contract model has been set
 export const buildConsentsFromContracts = async (
   contracts: any[],
   user: IUser

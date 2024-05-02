@@ -6,7 +6,6 @@ import { issueJwt } from "../libs/jwt";
 import axios from "axios";
 import * as fs from "fs";
 import path from "path";
-import UserIdentifier from "../models/UserIdentifier/UserIdentifier.model";
 
 /**
  * Retrieves a participant by id
@@ -75,7 +74,6 @@ export const registerParticipant = async (
 
     const newParticipant = new Participant(participantData);
 
-    // TODO
     newParticipant.jsonld = "";
 
     newParticipant.selfDescriptionURL =
@@ -271,7 +269,6 @@ export const exportPublicKeyToParticipants = async (
         },
         {
           headers: {
-            //TODO CHANGE
             Authorization: `Bearer ${participantLogin.data.data.token.token}`,
           },
         }

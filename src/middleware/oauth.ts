@@ -21,7 +21,6 @@ export const validateAccessToken = (
         return res.status(401).json({ error: "Invalid access token" });
       }
 
-      // TODO Perform additional checks, such as token expiration and scope validation
       // Ensure the user has the required scopes to access the endpoint
 
       req.user = decoded as any;
