@@ -3,6 +3,7 @@ import cors from "cors";
 import { loadRoutes } from "./routes";
 import { loadMongoose } from "./config/database";
 import path from "path";
+import client from "prom-client";
 
 // Simulation
 import contractsSimulatedRouter from "./simulated/contract/router";
@@ -26,8 +27,26 @@ export const startServer = (testPort?: number) => {
 
   loadRoutes(app);
 
-  // SIMULATING CONTRACT
-  app.use("/contracts", contractsSimulatedRouter);
+  if (!testPort) {
+    // SIMULATING CONTRACT
+    app.use("/contracts", contractsSimulatedRouter);
+
+    // Create a custom counter metric
+    const counter = new client.Counter({
+      name: "node_request_count",
+      help: "The total number of processed requests",
+    });
+
+    // Increment the counter on each request
+    app.use((req, res, next) => {
+      counter.inc();
+      next();
+    });
+    app.get("/metrics", async (req, res) => {
+      res.set("Content-Type", client.register.contentType);
+      res.end(await client.register.metrics());
+    });
+  }
 
   // Start the server
   const server = app.listen(port, () => {

@@ -16,6 +16,7 @@ services:
     networks:
       - consent-manager
       - ptx
+      - monitoring-prometheus
 
   mongodb:
     container_name: "consent-manager-mongodb"
@@ -30,12 +31,26 @@ services:
     networks:
       - consent-manager
 
+  promtail:
+    image: grafana/promtail:master
+    volumes:
+      - /var/log:/var/log
+    #    command: -config.file=/etc/promtail/docker-config.yaml
+    networks:
+      - monitoring_promtail-loki
+
 networks:
   consent-manager:
     name: consent-manager
     driver: bridge
   ptx:
     name: ptx
+    external: true
+  monitoring_promtail-loki:
+    name: monitoring_promtail-loki
+    external: true
+  monitoring-prometheus:
+    name: monitoring-prometheus
     external: true
 
 volumes:

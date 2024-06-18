@@ -1,3 +1,4 @@
+import { before } from "mocha";
 import mongoose from "mongoose";
 before(async () => {
   await mongoose.connect(process.env.MONGO_URI_TEST);
