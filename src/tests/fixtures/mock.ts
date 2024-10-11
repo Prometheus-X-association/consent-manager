@@ -3,7 +3,7 @@ const crypto = require("crypto");
 
 const baseURL = "http://localhost:8888";
 const pdiURL = "http://localhost:5173";
-export const setupnockMocks = (providerBase64) => {
+export const setupnockMocks = (providerBase64: string) => {
   // Mocking provider service offerings
   nock("https://api.test.com/v1")
     .get("/catalog/serviceofferings/65e04da4b37bfc192ddcbdd1")
