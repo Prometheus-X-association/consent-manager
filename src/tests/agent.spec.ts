@@ -1,7 +1,6 @@
 import { expect } from "chai";
 import supertest from "supertest";
 import { Application } from "express";
-import { MongoMemoryReplSet } from "mongodb-memory-server";
 import { startServer } from "../server";
 import { IncomingMessage, ServerResponse } from "http";
 import * as http from "http";

@@ -1,12 +1,9 @@
 import { expect } from "chai";
 import supertest from "supertest";
 import { Application } from "express";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import { startServer } from "../server";
 import { IncomingMessage, ServerResponse } from "http";
 import * as http from "http";
-import MockAdapter from "axios-mock-adapter";
-import axios from "axios";
 import crypto from "crypto";
 import nock from "nock";
 import { setupnockMocks } from "./fixtures/mock";
