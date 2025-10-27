@@ -10,6 +10,8 @@ import { OAUTH_SCOPES } from "../libs/OAuth/scopes";
 import { userToSelfDescription } from "../libs/jsonld/selfDescriptions";
 import { USER_SELECTION } from "../utils/schemaSelection";
 import { checkUserIdentifier } from "../utils/UserIdentifierMatchingProcessor";
+import Participant from "../models/Participant/Participant.model";
+import mongoose from "mongoose";
 
 /**
  * Registers a new user in the PDI
@@ -285,4 +287,87 @@ export const registerUserIdentifiers = async (
   } catch (err) {
     next(err);
   }
+};
+
+/**
+ * Finds a user identifier by email
+ * @param req
+ * @param res
+ * @returns
+ */
+export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
+  const { email, selfDescription } = req.body;
+  const results = {
+    userIdentifierExists: false,
+    userIdentifier: "",
+    userExists: false,
+  };
+
+  const participant = await Participant.findOne({
+    selfDescriptionURL: selfDescription,
+    email: email,
+  });
+
+  if (!participant)
+    return res.status(404).json({ message: "Participant not found" });
+
+  const userIdentifier = await UserIdentifier.findOne({
+    attachedParticipant: new mongoose.Types.ObjectId(participant._id),
+    email: email,
+  }).lean();
+
+  if (!userIdentifier) {
+    return res.status(404).json({ message: "User not found" });
+  } else {
+    results.userIdentifierExists = true;
+    results.userIdentifier = userIdentifier._id;
+    const user = await User.findOne({
+      email: email,
+      identifiers: {
+        $in: [userIdentifier._id],
+      },
+    }).lean();
+
+    if (user) {
+      results.userExists = true;
+    }
+  }
+
+  return res.status(200).json(results);
+};
+
+export const getUserByEmail = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  const user = await User.findOne({
+    email: email,
+  }).lean();
+  await user.save();
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  } else {
+    return res.status(200).json(user);
+  }
+};
+
+export const injectUserIdentifier = async (req: Request, res: Response) => {
+  const { user: userId, userIdentifier } = req.body;
+
+  const user = await User.findById(userId);
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  } else {
+    const currentUserIdentifier = await UserIdentifier.findById(
+      userIdentifier
+    ).lean();
+
+    if (!currentUserIdentifier) {
+      return res.status(404).json({ message: "User Identifier not found" });
+    }
+
+    user.identifiers.push(userIdentifier);
+  }
+
+  await user.save();
+  return res.status(200).json(user);
 };
