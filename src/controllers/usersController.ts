@@ -317,7 +317,7 @@ export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
   }).lean();
 
   if (!userIdentifier) {
-    return res.status(404).json({ message: "User not found" });
+    return res.status(404).json({ message: "User identifier not found" });
   } else {
     results.userIdentifierExists = true;
     results.userIdentifier = userIdentifier._id;
