@@ -341,7 +341,6 @@ export const getUserByEmail = async (req: Request, res: Response) => {
   const user = await User.findOne({
     email: email,
   }).lean();
-  await user.save();
 
   if (!user) {
     return res.status(404).json({ message: "User not found" });
@@ -351,21 +350,23 @@ export const getUserByEmail = async (req: Request, res: Response) => {
 };
 
 export const injectUserIdentifier = async (req: Request, res: Response) => {
-  const { user: userId, userIdentifier } = req.body;
+  const { userId, userIdentifiers } = req.body;
 
   const user = await User.findById(userId);
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   } else {
-    const currentUserIdentifier = await UserIdentifier.findById(
-      userIdentifier
-    ).lean();
+    userIdentifiers.map(async (userIdentifier: string) => {
+      const currentUserIdentifier = await UserIdentifier.findById(
+        userIdentifier
+      ).lean();
 
-    if (!currentUserIdentifier) {
-      return res.status(404).json({ message: "User Identifier not found" });
-    }
+      if (!currentUserIdentifier) {
+        return res.status(404).json({ message: "User Identifier not found" });
+      }
 
-    user.identifiers.push(userIdentifier);
+      user.identifiers.push(new mongoose.Types.ObjectId(userIdentifier));
+    });
   }
 
   await user.save();
