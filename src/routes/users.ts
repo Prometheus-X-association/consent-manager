@@ -36,11 +36,11 @@ r.delete("/logout", async (req, res, next) => {
 });
 r.get("/me", verifyUserJWT, me);
 
-r.get("/useridentifierbyemail", consentKeyCheck, getUserIdentifierByEmail);
+r.post("/identifier/search", consentKeyCheck, getUserIdentifierByEmail);
 
-r.get("/userbyemail", consentKeyCheck, getUserByEmail);
+r.post("/search", consentKeyCheck, getUserByEmail);
 
-r.post("/useridentifier", consentKeyCheck, injectUserIdentifier);
+r.post("/identifier", consentKeyCheck, injectUserIdentifier);
 
 // Used by Participants / Data Space Connectors to register a end user from their platform
 // This might change when using more decentralized identifiers for end users
