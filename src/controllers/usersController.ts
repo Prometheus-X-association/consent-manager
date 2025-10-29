@@ -296,7 +296,7 @@ export const registerUserIdentifiers = async (
  * @returns
  */
 export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
-  const { email, selfDescription } = req.body;
+  const { selfDescription } = req.body;
   const results = {
     userIdentifierExists: false,
     userIdentifier: "",
@@ -305,7 +305,6 @@ export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
 
   const participant = await Participant.findOne({
     selfDescriptionURL: selfDescription,
-    email: email,
   });
 
   if (!participant)
@@ -313,7 +312,6 @@ export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
 
   const userIdentifier = await UserIdentifier.findOne({
     attachedParticipant: new mongoose.Types.ObjectId(participant._id),
-    email: email,
   }).lean();
 
   if (!userIdentifier) {
@@ -322,7 +320,7 @@ export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
     results.userIdentifierExists = true;
     results.userIdentifier = userIdentifier._id;
     const user = await User.findOne({
-      email: email,
+      email: userIdentifier.email,
       identifiers: {
         $in: [userIdentifier._id],
       },
@@ -340,7 +338,9 @@ export const getUserByEmail = async (req: Request, res: Response) => {
   const { email } = req.body;
   const user = await User.findOne({
     email: email,
-  }).lean();
+  })
+    .select("-oauth -password")
+    .lean();
 
   if (!user) {
     return res.status(404).json({ message: "User not found" });
