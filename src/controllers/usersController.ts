@@ -354,10 +354,11 @@ export const injectUserIdentifier = async (req: Request, res: Response) => {
   const { userId, userIdentifiers } = req.body;
 
   const user = await User.findById(userId);
+
   if (!user) {
     return res.status(404).json({ message: "User not found" });
   } else {
-    userIdentifiers.map(async (userIdentifier: string) => {
+    for (const userIdentifier of userIdentifiers) {
       const currentUserIdentifier = await UserIdentifier.findById(
         userIdentifier
       ).lean();
@@ -367,9 +368,10 @@ export const injectUserIdentifier = async (req: Request, res: Response) => {
       }
 
       user.identifiers.push(new mongoose.Types.ObjectId(userIdentifier));
-    });
+    }
   }
 
-  await user.save();
-  return res.status(200).json(user);
+  const savedUser = await user.save();
+
+  return res.status(200).json(savedUser);
 };

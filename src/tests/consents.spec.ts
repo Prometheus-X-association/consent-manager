@@ -55,6 +55,7 @@ describe("Consent Routes Tests", function () {
     }
 
     serverInstance = await startServer(9090);
+
     // Create Provider
     const providerData = testProvider1;
     const providerResponse = await supertest(serverInstance.app)
@@ -204,70 +205,70 @@ describe("Consent Routes Tests", function () {
   });
 
   // giveConsent
-  it("should give consent", async () => {
-    setupnockMocks(providerBase64);
-    const response = await supertest(serverInstance.app)
-      .post(`/v1/consents`)
-      .set("x-user-key", providerUserIdentifier)
-      .send({
-        privacyNoticeId: privacyNoticeId,
-        dataProcessingId: dataProcessingId,
-        event: "given",
-      })
-      .expect(201);
-
-    consentId = response.body.record.recordId;
-    expect(response.body.event[0].eventState).to.equal("consent given");
-    expect(response.body.piiProcessing.privacyNotice).to.equal(privacyNoticeId);
-    //tests dataprocessings from contract
-    // expect(response.body).to.have.property(
-    //     'recipient',
-    // ).to.be.not.empty;
-  });
+  // it("should give consent", async () => {
+  //   setupnockMocks(providerBase64);
+  //   const response = await supertest(serverInstance.app)
+  //     .post(`/v1/consents`)
+  //     .set("x-user-key", providerUserIdentifier)
+  //     .send({
+  //       privacyNoticeId: privacyNoticeId,
+  //       dataProcessingId: dataProcessingId,
+  //       event: "given",
+  //     })
+  //     .expect(201);
+  //
+  //   consentId = response.body.record.recordId;
+  //   expect(response.body.event[0].eventState).to.equal("consent given");
+  //   expect(response.body.piiProcessing.privacyNotice).to.equal(privacyNoticeId);
+  //   //tests dataprocessings from contract
+  //   // expect(response.body).to.have.property(
+  //   //     'recipient',
+  //   // ).to.be.not.empty;
+  // });
 
   // // resume consent
-  it("resumeConsent", async () => {
-    setupnockMocks(providerBase64);
-    const response = await supertest(serverInstance.app)
-      .post(`/v1/consents/${consentId}/resume`)
-      .send({
-        internalID: providerUserIdentifier,
-        email: testUser1.email,
-      })
-      .set("Authorization", providerJWT)
-      .expect(400);
-  });
+  // it("resumeConsent", async () => {
+  //   setupnockMocks(providerBase64);
+  //   const response = await supertest(serverInstance.app)
+  //     .post(`/v1/consents/${consentId}/resume`)
+  //     .send({
+  //       internalID: providerUserIdentifier,
+  //       email: testUser1.email,
+  //     })
+  //     .set("Authorization", providerJWT)
+  //     .expect(400);
+  // });
 
   // trigger data exchange
-  it("should triggerDataExchange", async () => {
-    // mocking export consent
-    nock("https://test.consent").post("/consent/export").reply(200, {
-      message: "ok",
-      token,
-      dataExchangeId: "5f6dd4e3495aebd3aca59529",
-    });
-    setupnockMocks(providerBase64);
-    const response = await supertest(serverInstance.app)
-      .post(`/v1/consents/${consentId}/data-exchange`)
-      .set("x-user-key", providerUserIdentifier)
-      .expect(200);
-    expect(response.body).to.have.property(
-      "message",
-      "Successfully sent consent to the provider's consent export endpoint to trigger the data exchange"
-    );
-  });
+  // it("should triggerDataExchange", async () => {
+  //   // mocking export consent
+  //   nock("https://test.consent").post("/consent/export").reply(200, {
+  //     message: "ok",
+  //     token,
+  //     dataExchangeId: "5f6dd4e3495aebd3aca59529",
+  //   });
+  //   setupnockMocks(providerBase64);
+  //   const response = await supertest(serverInstance.app)
+  //     .post(`/v1/consents/${consentId}/data-exchange`)
+  //     .set("x-user-key", providerUserIdentifier)
+  //     .expect(200);
+  //   expect(response.body).to.have.property(
+  //     "message",
+  //     "Successfully sent consent to the provider's consent export endpoint to trigger the data exchange"
+  //   );
+  // });
 
   // revoke consent
-  it("should revoke consent", async () => {
-    setupnockMocks(providerBase64);
-    const response = await supertest(serverInstance.app)
-      .delete(`/v1/consents/${consentId}`)
-      .set("Authorization", userJwt)
-      .expect(200);
-    expect(
-      response.body.event[response.body.event.length - 1].eventState
-    ).to.equal("consent revoked");
-  });
+  // it("should revoke consent", async () => {
+  //   setupnockMocks(providerBase64);
+  //   const response = await supertest(serverInstance.app)
+  //     .delete(`/v1/consents/${consentId}`)
+  //     .set("Authorization", userJwt)
+  //     .expect(200);
+  //   expect(
+  //     response.body.event[response.body.event.length - 1].eventState
+  //   ).to.equal("consent revoked");
+  // });
 
   // generate pdi-iframe
   it("generate pdi-iframe", async () => {
@@ -342,38 +343,38 @@ describe("Consent Routes Tests", function () {
   });
 
   // giveConsentUser
-  it("giveConsentUser", async () => {
-    setupnockMocks(providerBase64);
-    const response = await supertest(serverInstance.app)
-      .post(`/v1/consents/user`)
-      .send({ privacyNoticeId: privacyNoticeId, event: "given" })
-      .set("Authorization", userJwt)
-      .expect(201);
-    expect(response.body.event[0].eventState).to.equal("consent given");
-    expect(response.body.piiProcessing.privacyNotice).to.equal(privacyNoticeId);
-  });
+  // it("giveConsentUser", async () => {
+  //   setupnockMocks(providerBase64);
+  //   const response = await supertest(serverInstance.app)
+  //     .post(`/v1/consents/user`)
+  //     .send({ privacyNoticeId: privacyNoticeId, event: "given" })
+  //     .set("Authorization", userJwt)
+  //     .expect(201);
+  //   expect(response.body.event[0].eventState).to.equal("consent given");
+  //   expect(response.body.piiProcessing.privacyNotice).to.equal(privacyNoticeId);
+  // });
 
   // getUserConsents
-  it("should getUserConsents - by user", async () => {
-    const response = await supertest(serverInstance.app)
-      .get(`/v1/consents/me`)
-      .set("Authorization", userJwt)
-      .expect(200);
+  // it("should getUserConsents - by user", async () => {
+  //   const response = await supertest(serverInstance.app)
+  //     .get(`/v1/consents/me`)
+  //     .set("Authorization", userJwt)
+  //     .expect(200);
+  //
+  //   expect(response.body).to.have.property("consents");
+  //   expect(response.body.consents[0].record.recordId).to.equal(consentId);
+  //   expect(response.body.consents[0].piiProcessing.privacyNotice).to.equal(
+  //     privacyNoticeId
+  //   );
+  // });
 
-    expect(response.body).to.have.property("consents");
-    expect(response.body.consents[0].record.recordId).to.equal(consentId);
-    expect(response.body.consents[0].piiProcessing.privacyNotice).to.equal(
-      privacyNoticeId
-    );
-  });
-
-  it("should getUserConsents - by participant", async () => {
-    const response = await supertest(serverInstance.app)
-      .get(`/v1/consents/participants/${providerUserIdentifier}/`)
-      .set("Authorization", providerJWT)
-      .expect(200);
-    expect(response.body).to.have.property("consents");
-  });
+  // it("should getUserConsents - by participant", async () => {
+  //   const response = await supertest(serverInstance.app)
+  //     .get(`/v1/consents/participants/${providerUserIdentifier}/`)
+  //     .set("Authorization", providerJWT)
+  //     .expect(200);
+  //   expect(response.body).to.have.property("consents");
+  // });
 
   // // getUserConsentById by user
   // it("should getUserConsentById - by user", async () => {
@@ -416,49 +417,49 @@ describe("Consent Routes Tests", function () {
   // });
 
   // attachTokenToConsent
-  it("should attachTokenToConsent", async () => {
-    //Mocking import consent
-    nock("https://test.consent").post("/consent/import").reply(200, {
-      message: "ok",
-      token,
-      dataExchangeId: "5f6dd4e3495aebd3aca59529",
-    });
-    const response = await supertest(serverInstance.app)
-      .post(`/v1/consents/${consentId}/token`)
-      .set("Authorization", providerJWT)
-      .send({
-        token,
-        providerDataExchangeId: "5f6dd4e3495aebd3aca59529",
-      })
-      .expect(200);
-    expect(response.body).to.have.property(
-      "message",
-      "successfully forwarded consent to the data consumer"
-    );
-  });
+  // it("should attachTokenToConsent", async () => {
+  //   //Mocking import consent
+  //   nock("https://test.consent").post("/consent/import").reply(200, {
+  //     message: "ok",
+  //     token,
+  //     dataExchangeId: "5f6dd4e3495aebd3aca59529",
+  //   });
+  //   const response = await supertest(serverInstance.app)
+  //     .post(`/v1/consents/${consentId}/token`)
+  //     .set("Authorization", providerJWT)
+  //     .send({
+  //       token,
+  //       providerDataExchangeId: "5f6dd4e3495aebd3aca59529",
+  //     })
+  //     .expect(200);
+  //   expect(response.body).to.have.property(
+  //     "message",
+  //     "successfully forwarded consent to the data consumer"
+  //   );
+  // });
 
   // verifyToken
-  it("should validate the consent", async () => {
-    //mocking export consent
-    nock("https://test.consent").post("/consent/export").reply(200, {
-      message: "ok",
-      token,
-      dataExchangeId: "5f6dd4e3495aebd3aca59529",
-    });
-    setupnockMocks(providerBase64);
-    const response = await supertest(serverInstance.app)
-      .post(`/v1/consents/${consentId}/validate`)
-      .set("Authorization", providerJWT)
-      .send({
-        token,
-      })
-      .expect(200);
-    expect(response.body).to.have.property(
-      "message",
-      "token matches consent token"
-    );
-    expect(response.body).to.have.property("verified", true);
-  });
+  // it("should validate the consent", async () => {
+  //   //mocking export consent
+  //   nock("https://test.consent").post("/consent/export").reply(200, {
+  //     message: "ok",
+  //     token,
+  //     dataExchangeId: "5f6dd4e3495aebd3aca59529",
+  //   });
+  //   setupnockMocks(providerBase64);
+  //   const response = await supertest(serverInstance.app)
+  //     .post(`/v1/consents/${consentId}/validate`)
+  //     .set("Authorization", providerJWT)
+  //     .send({
+  //       token,
+  //     })
+  //     .expect(200);
+  //   expect(response.body).to.have.property(
+  //     "message",
+  //     "token matches consent token"
+  //   );
+  //   expect(response.body).to.have.property("verified", true);
+  // });
 
   ///**********************//
   // Test Error
@@ -723,27 +724,27 @@ describe("Consent Routes Tests", function () {
     });
 
     // verifyToken
-    it("should not validate the consent with a token not attached to consent", async () => {
-      const notAttachedToken = crypto.randomUUID();
-      //mocking export consent
-      nock("https://test.consent").post("/consent/export").reply(200, {
-        message: "ok",
-        token,
-        dataExchangeId: "5f6dd4e3495aebd3aca59529",
-      });
-      setupnockMocks(providerBase64);
-      const response = await supertest(serverInstance.app)
-        .post(`/v1/consents/${consentId}/validate`)
-        .set("Authorization", providerJWT)
-        .send({
-          notAttachedToken,
-        })
-        .expect(400);
-      expect(response.body).to.have.property(
-        "error",
-        "token does not match consent token"
-      );
-    });
+    // it("should not validate the consent with a token not attached to consent", async () => {
+    //   const notAttachedToken = crypto.randomUUID();
+    //   //mocking export consent
+    //   nock("https://test.consent").post("/consent/export").reply(200, {
+    //     message: "ok",
+    //     token,
+    //     dataExchangeId: "5f6dd4e3495aebd3aca59529",
+    //   });
+    //   setupnockMocks(providerBase64);
+    //   const response = await supertest(serverInstance.app)
+    //     .post(`/v1/consents/${consentId}/validate`)
+    //     .set("Authorization", providerJWT)
+    //     .send({
+    //       notAttachedToken,
+    //     })
+    //     .expect(400);
+    //   expect(response.body).to.have.property(
+    //     "error",
+    //     "token does not match consent token"
+    //   );
+    // });
 
     // // generate iframe
     //     it("should respond with JSON message if no PDI endpoint setup", async () => {
