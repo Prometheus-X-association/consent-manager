@@ -98,7 +98,6 @@ describe("Consent Agent Routes Tests", function () {
       .get(`/v1/profile/${userId}/configurations`)
       .set("Authorization", userJwt)
       .timeout(100);
-    console.log(response.body);
     expect(response.body).to.be.an("object");
     expect(response.body).to.have.property("allowRecommendations", true);
   });
