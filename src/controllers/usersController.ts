@@ -304,16 +304,19 @@ export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
     userExists: false,
   };
 
+  let userIdentifier = null;
+
   const participant = await Participant.findOne({
     selfDescriptionURL: selfDescription,
   });
 
-  if (participant) results.participantExists = true;
-
-  const userIdentifier = await UserIdentifier.findOne({
-    attachedParticipant: new mongoose.Types.ObjectId(participant._id),
-    email: email,
-  }).lean();
+  if (participant) {
+    results.participantExists = true;
+    userIdentifier = await UserIdentifier.findOne({
+      attachedParticipant: new mongoose.Types.ObjectId(participant._id),
+      email: email,
+    }).lean();
+  }
 
   if (userIdentifier) {
     results.userIdentifierExists = true;

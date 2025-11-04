@@ -307,6 +307,38 @@ describe("Users Routes Tests", () => {
   });
 
   describe("search user identifier and user by email", () => {
+    it("should get a all to false", async () => {
+      const response = await supertest(serverInstance.app)
+        .post(`/v1/users/identifier/search`)
+        .set("x-visionstrust-consent-key", "test-consent-key")
+        .send({
+          email: testUser1.email,
+          selfDescription: "test",
+        })
+        .expect(200);
+      expect(response.body).to.not.be.empty;
+      expect(response.body).to.have.property("participantExists", false);
+      expect(response.body).to.have.property("userIdentifierExists", false);
+      expect(response.body).to.have.property("userIdentifier");
+      expect(response.body).to.have.property("userExists", false);
+    });
+
+    it("should get a participant exist but no userIdentifier and user", async () => {
+      const response = await supertest(serverInstance.app)
+        .post(`/v1/users/identifier/search`)
+        .set("x-visionstrust-consent-key", "test-consent-key")
+        .send({
+          email: "test",
+          selfDescription: testParticipant3.selfDescriptionURL,
+        })
+        .expect(200);
+      console.log(response);
+      expect(response.body).to.have.property("participantExists", true);
+      expect(response.body).to.have.property("userIdentifierExists", false);
+      expect(response.body).to.have.property("userIdentifier");
+      expect(response.body).to.have.property("userExists", false);
+    });
+
     it("should get user identifier by email", async () => {
       const response = await supertest(serverInstance.app)
         .post(`/v1/users/identifier/search`)
@@ -317,7 +349,10 @@ describe("Users Routes Tests", () => {
         })
         .expect(200);
       expect(response.body).to.not.be.empty;
+      expect(response.body).to.have.property("participantExists", true);
       expect(response.body).to.have.property("userIdentifierExists", true);
+      expect(response.body).to.have.property("userIdentifier");
+      expect(response.body).to.have.property("userExists", true);
     });
   });
 
