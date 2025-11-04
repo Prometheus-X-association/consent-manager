@@ -298,6 +298,7 @@ export const registerUserIdentifiers = async (
 export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
   const { selfDescription, email } = req.body;
   const results = {
+    paeticipantExists: false,
     userIdentifierExists: false,
     userIdentifier: "",
     userExists: false,
@@ -307,17 +308,14 @@ export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
     selfDescriptionURL: selfDescription,
   });
 
-  if (!participant)
-    return res.status(404).json({ message: "Participant not found" });
+  if (participant) results.paeticipantExists = true;
 
   const userIdentifier = await UserIdentifier.findOne({
     attachedParticipant: new mongoose.Types.ObjectId(participant._id),
     email: email,
   }).lean();
 
-  if (!userIdentifier) {
-    return res.status(404).json({ message: "User identifier not found" });
-  } else {
+  if (userIdentifier) {
     results.userIdentifierExists = true;
     results.userIdentifier = userIdentifier._id;
     const user = await User.findOne({
