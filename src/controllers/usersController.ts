@@ -12,6 +12,7 @@ import { USER_SELECTION } from "../utils/schemaSelection";
 import { checkUserIdentifier } from "../utils/UserIdentifierMatchingProcessor";
 import Participant from "../models/Participant/Participant.model";
 import mongoose from "mongoose";
+import { string } from "joi";
 
 /**
  * Registers a new user in the PDI
@@ -321,12 +322,16 @@ export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
   if (userIdentifier) {
     results.userIdentifierExists = true;
     results.userIdentifier = userIdentifier._id;
-    const user = await User.findOne({
-      email: userIdentifier.email,
-      identifiers: {
-        $in: [userIdentifier._id],
-      },
-    }).lean();
+    const users = await User.find({ email: userIdentifier.email });
+
+    let user = null;
+    users.filter((u) => {
+      u.identifiers.forEach((identifier) => {
+        if (identifier.toString() === results.userIdentifier.toString()) {
+          user = u;
+        }
+      });
+    });
 
     if (user) {
       results.userExists = true;
