@@ -300,6 +300,7 @@ export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
   const { selfDescription, email } = req.body;
   const results = {
     participantExists: false,
+    participantId: "",
     userIdentifierExists: false,
     userIdentifier: "",
     userExists: false,
@@ -317,6 +318,7 @@ export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
       attachedParticipant: new mongoose.Types.ObjectId(participant._id),
       email: email,
     }).lean();
+    results.participantId = participant._id;
   }
 
   if (userIdentifier) {
