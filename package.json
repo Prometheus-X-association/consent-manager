@@ -1,6 +1,6 @@
 {
   "name": "consent-manager",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Prometheus-X Consent Manager",
   "main": "dist/src/index.js",
   "scripts": {
