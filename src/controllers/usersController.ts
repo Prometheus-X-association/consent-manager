@@ -375,6 +375,12 @@ export const injectUserIdentifier = async (req: Request, res: Response) => {
         return res.status(404).json({ message: "User Identifier not found" });
       }
 
+      if (
+        user.identifiers.includes(new mongoose.Types.ObjectId(userIdentifier))
+      ) {
+        continue;
+      }
+
       user.identifiers.push(new mongoose.Types.ObjectId(userIdentifier));
     }
   }
