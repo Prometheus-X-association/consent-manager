@@ -49,10 +49,13 @@ export const bilateralContractToPrivacyNotice = async (
  * and consumer are known
  */
 export const ecosystemContractToPrivacyNotice = (
-  contract: EcosystemContract
+  contract: EcosystemContract,
+  contractURI?: string
 ) => {
   const privacyNotice: IPrivacyNotice = {
-    contract: `${process.env.CONTRACT_SERVICE_BASE_URL}/contracts/${contract._id}`,
+    contract:
+      contractURI ??
+      `${process.env.CONTRACT_SERVICE_BASE_URL}/contracts/${contract._id}`,
     title: contract.profile,
     lastUpdated: Date.now().toString(),
     dataProvider: "",
