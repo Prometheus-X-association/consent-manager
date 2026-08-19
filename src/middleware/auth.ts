@@ -3,6 +3,25 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import Participant from "../models/Participant/Participant.model";
 import UserIdentifier from "../models/UserIdentifier/UserIdentifier.model";
 import User from "../models/User/User.model";
+import {
+  resolveTokenRoute,
+  mapExternalSubjectToLocal,
+} from "../libs/jwt/externalIdentity";
+import { verifyExternalToken } from "../libs/jwt/externalVerifier";
+import { UnauthorizedError } from "../errors/UnauthorizedError";
+
+/**
+ * Builds the 401 response message for a failed external-token attempt, exposing
+ * the specific reason for {@link UnauthorizedError} while masking unexpected
+ * failures behind the generic message used by the local path.
+ *
+ * @param error - The caught error.
+ * @returns A human-readable message safe to return to the client.
+ */
+const externalAuthErrorMessage = (error: unknown): string =>
+  error instanceof UnauthorizedError
+    ? error.message
+    : "Invalid or expired token";
 
 type DecodedServiceJWT = {
   serviceKey: string;
@@ -40,6 +59,24 @@ export const verifyParticipantJWT = async (
     return res.status(401).json({
       message: "'" + token + "' is not a valid authorization token",
     });
+  }
+
+  if (resolveTokenRoute(token) === "external") {
+    try {
+      const claims = await verifyExternalToken(token);
+      const identity = await mapExternalSubjectToLocal(claims);
+      if (!identity.participant) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized resource" });
+      }
+      req.decodedToken = claims as unknown as JwtPayload;
+      req.userParticipant = { id: identity.participant.id };
+      req.session.userParticipant = { id: identity.participant.id };
+      return next();
+    } catch (error) {
+      return res.status(401).json({ message: externalAuthErrorMessage(error) });
+    }
   }
 
   const buff = Buffer.from(data[1], "base64");
@@ -188,6 +225,25 @@ export const verifyUserJWT = async (
     }
 
     const token = authHeader.slice(7);
+
+    if (resolveTokenRoute(token) === "external") {
+      try {
+        const claims = await verifyExternalToken(token);
+        const identity = await mapExternalSubjectToLocal(claims);
+        if (!identity.user) {
+          return res
+            .status(401)
+            .json({ message: "User with subject doesn't exist" });
+        }
+        req.decodedToken = claims as unknown as JwtPayload;
+        req.user = { id: identity.user.id };
+        return next();
+      } catch (error) {
+        return res
+          .status(401)
+          .json({ message: externalAuthErrorMessage(error) });
+      }
+    }
 
     try {
       const decodedToken = jwt.verify(

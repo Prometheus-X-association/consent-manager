@@ -101,6 +101,7 @@
     "express": "^4.18.2",
     "express-session": "^1.17.3",
     "joi": "^17.9.2",
+    "jose": "^4.15.9",
     "jsonld": "^8.2.0",
     "jsonwebtoken": "^9.0.1",
     "lodash": "^4.17.21",

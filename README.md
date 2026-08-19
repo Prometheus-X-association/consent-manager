@@ -363,6 +363,92 @@ docker exec -it consent-manager npm run test-agent
 
 For more information see the [Tests definition](https://github.com/Prometheus-X-association/consent-manager/wiki/Tests-definition).
 
+## External IDP / OID4VP token verification
+
+By default the consent manager only accepts JWTs it signed itself (symmetric
+HS256, shared secrets). It can additionally verify JWTs issued by **external
+IDPs / OID4VP login flows**, using signing keys fetched from JWKS endpoints that
+are discovered through each issuer's `.well-known/openid-configuration` document.
+
+The feature is **off by default** and fully additive: when no trusted issuers
+are configured, every token continues to take the existing local HMAC path
+unchanged.
+
+### How routing works
+
+Each of the three auth middlewares (`verifyUserJWT`, `validateAccessToken`,
+`verifyParticipantJWT`) inspects the token's **unverified** `iss` claim only to
+_select_ a verifier — never to trust a claim:
+
+- No `iss`, a self-issued `iss`, or an `iss` that is not in the trusted set →
+  the existing local HMAC verification (unchanged).
+- An `iss` in `EXTERNAL_OIDC_ISSUERS` → the external verifier, which validates
+  the signature and enforces `iss`, `aud`, `exp` and the allowed algorithms via
+  OIDC discovery + remote JWKS (with caching and automatic key rotation).
+
+After verification, the external subject (a DID / IDP subject taken from
+`EXTERNAL_OIDC_SUBJECT_CLAIM`) is mapped to a local identity:
+
+- a `UserIdentifier` whose DID `identifier` equals the subject (and its owning
+  `User`), and/or
+- a `Participant` whose `did` equals the subject.
+
+There is **no just-in-time provisioning**: a valid external token whose subject
+does not resolve to an existing local record is rejected with `401`. Onboarding
+stays with the existing `/users/register` endpoints.
+
+### Configuration
+
+| Env var | Meaning | Default |
+| --- | --- | --- |
+| `EXTERNAL_OIDC_ISSUERS` | Comma-separated list of trusted issuer URLs (must match the token `iss`) | _(empty = feature off)_ |
+| `EXTERNAL_OIDC_AUDIENCE` | Expected `aud` claim | _(required when issuers set)_ |
+| `EXTERNAL_OIDC_ALGS` | Allowed (asymmetric) signing algorithms | `RS256,ES256,EdDSA` |
+| `EXTERNAL_OIDC_SUBJECT_CLAIM` | Claim holding the DID / external subject | `sub` |
+| `EXTERNAL_OIDC_DISCOVERY_TTL` | Discovery + JWKS cache TTL (seconds) | `3600` |
+
+If `EXTERNAL_OIDC_ISSUERS` is set without `EXTERNAL_OIDC_AUDIENCE`, startup fails
+fast to avoid accepting a trusted issuer's token for any relying party.
+
+```.dotenv
+# Example: trust one external IDP
+EXTERNAL_OIDC_ISSUERS=https://idp.example.org
+EXTERNAL_OIDC_AUDIENCE=consent-manager
+EXTERNAL_OIDC_ALGS=RS256,ES256,EdDSA
+EXTERNAL_OIDC_SUBJECT_CLAIM=sub
+EXTERNAL_OIDC_DISCOVERY_TTL=3600
+```
+
+### End-to-end example
+
+1. A user logs in through an external IDP / OID4VP flow and receives an access
+   token, e.g. with the (decoded) payload:
+
+   ```json
+   {
+     "iss": "https://idp.example.org",
+     "aud": "consent-manager",
+     "sub": "did:example:123456789abcdefghi",
+     "exp": 1755600000
+   }
+   ```
+
+2. The token must correspond to an existing local identity: a `UserIdentifier`
+   whose `identifier` is `did:example:123456789abcdefghi` (linked to a `User`),
+   or a `Participant` whose `did` is that value.
+
+3. The client calls a protected endpoint with the token:
+
+   ```sh
+   curl -H "Authorization: Bearer <external-token>" \
+     http://localhost:3000/v1/users/me
+   ```
+
+4. The consent manager discovers
+   `https://idp.example.org/.well-known/openid-configuration`, fetches the
+   `jwks_uri`, verifies the signature and claims, maps the subject to the local
+   user, and processes the request. An unknown subject yields `401`.
+
 ## Contributing
 
 We welcome contributions to the Prometheus-X Consent Manager. If you encounter a bug or wish to propose a new feature, kindly open an issue in the GitHub repository. For code contributions, fork the repository, create a new branch, make your changes, and submit a pull request.
