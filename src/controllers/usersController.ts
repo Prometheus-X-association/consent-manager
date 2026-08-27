@@ -392,3 +392,4 @@ export const injectUserIdentifier = async (req: Request, res: Response) => {
     .lean();
 
   return res.status(200).json(sanitizedUser);
+};
