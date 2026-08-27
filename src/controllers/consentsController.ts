@@ -51,22 +51,39 @@ export const getUserConsents = async (
   next: NextFunction
 ) => {
   try {
-    const { limit = "10", page = "1", receipt = false } = req.query;
+    const {
+      limit = "10",
+      page = "1",
+      receipt = false,
+      all = false,
+    } = req.query;
 
     const skip = (parseInt(page.toString()) - 1) * parseInt(limit.toString());
 
+    const and: any[] = [];
+    const filters = {
+      $and: and,
+    };
+
+    if (!all) {
+      filters["$and"].push({ child: { $exists: false } });
+    }
+
     let consents;
     if (req.user && req.user?.id) {
-      consents = await Consent.find({ user: req.user?.id })
+      filters["$and"].push({ user: req.user?.id });
+
+      consents = await Consent.find(filters)
         .skip(skip)
         .limit(parseInt(limit.toString()));
     } else if (req.userIdentifier && req.userIdentifier?.id) {
-      consents = await Consent.find({
+      filters["$and"].push({
         $or: [
           { consumerUserIdentifier: req.userIdentifier?.id },
           { providerUserIdentifier: req.userIdentifier?.id },
         ],
-      })
+      });
+      consents = await Consent.find(filters)
         .skip(skip)
         .limit(parseInt(limit.toString()));
     }
@@ -374,8 +391,15 @@ export const giveConsent = async (
     const providerUserIdentifier = await UserIdentifier.findById(
       req.userIdentifier?.id
     ).lean();
-    const { privacyNoticeId, email } = req.body;
+    const { privacyNoticeId, email, event } = req.body;
+
     let { data } = req.body;
+    if (data.length === 0) {
+      throw new BadRequestError("Data are empty", [
+        { field: "data", message: "can't be empty" },
+      ]);
+    }
+
     const { triggerDataExchange } = req.query;
     const dataProcessingId: string = req.body.dataProcessingId;
 
@@ -562,29 +586,82 @@ export const giveConsent = async (
         }
       }
 
-      const consent = new Consent({
+      //Heritance verification
+      const parentConsent = await Consent.findOne({
         privacyNotice: privacyNotice._id,
-        user: userId,
-        providerUserIdentifier: providerUserIdentifier,
-        consumerUserIdentifier: consumerUserIdentifier,
-        dataProvider: dataProvider?._id,
-        dataConsumer: dataConsumer?._id,
-        recipients: privacyNotice.recipients,
-        purposes: [...privacyNotice.purposes],
+        status: { $in: ["revoked", "terminated"] },
         data: data?.length > 0 ? data : [...privacyNotice.data],
-        status: "granted",
-        consented: true,
-        contract: privacyNotice.contract,
-        event: [consentEvent.given],
-        recipientThirdParties:
-          dataProcessingId && privacyNotice?.dataProcessings.length > 0
-            ? privacyNotice?.dataProcessings.find(
-                (element) => element.catalogId === dataProcessingId
-              )
-            : [],
+        user: userId,
       });
+      let parentConsentId = null;
+      if (parentConsent) {
+        parentConsentId = parentConsent._id;
+      }
+
+      let consent;
+
+      if (event === "refused") {
+        consent = new Consent({
+          privacyNotice: privacyNotice._id,
+          user: userId,
+          providerUserIdentifier: providerUserIdentifier,
+          consumerUserIdentifier: consumerUserIdentifier,
+          dataProvider: dataProvider?._id,
+          dataConsumer: dataConsumer?._id,
+          recipients: privacyNotice.recipients,
+          purposes: [...privacyNotice.purposes],
+          data: data?.length > 0 ? data : [...privacyNotice.data],
+          status: "granted",
+          parent: parentConsentId,
+          consented: true,
+          contract: privacyNotice.contract,
+          event: [consentEvent.refused],
+          recipientThirdParties:
+            dataProcessingId && privacyNotice?.dataProcessings.length > 0
+              ? privacyNotice?.dataProcessings.find(
+                  (element) => element.catalogId === dataProcessingId
+                )
+              : [],
+        });
+      } else if (event === "given") {
+        consent = new Consent({
+          privacyNotice: privacyNotice._id,
+          user: userId,
+          providerUserIdentifier: providerUserIdentifier,
+          consumerUserIdentifier: consumerUserIdentifier,
+          dataProvider: dataProvider?._id,
+          dataConsumer: dataConsumer?._id,
+          recipients: privacyNotice.recipients,
+          purposes: [...privacyNotice.purposes],
+          data: data?.length > 0 ? data : [...privacyNotice.data],
+          status: "granted",
+          parent: parentConsentId,
+          consented: true,
+          contract: privacyNotice.contract,
+          event: [consentEvent.given],
+          recipientThirdParties:
+            dataProcessingId && privacyNotice?.dataProcessings.length > 0
+              ? privacyNotice?.dataProcessings.find(
+                  (element) => element.catalogId === dataProcessingId
+                )
+              : [],
+        });
+      } else {
+        return res
+          .status(400)
+          .json({ error: "Wrong event type, expected 'given' or 'refused'" });
+      }
 
       const newConsent = await consent.save();
+
+      if (parentConsent) {
+        await parentConsent.updateOne({
+          $push: {
+            children: newConsent._id,
+          },
+        });
+      }
+
       if (triggerDataExchange) {
         return await triggerDataExchangeByConsentId(newConsent._id, res);
       } else {
@@ -617,8 +694,14 @@ export const giveConsentUser = async (
     }>([{ path: "identifiers" }]);
     if (!user) return res.status(404).json({ error: "user not found" });
 
-    const { privacyNoticeId, email } = req.body;
+    const { privacyNoticeId, email, event } = req.body;
     let { data } = req.body;
+
+    if (data.length === 0) {
+      throw new BadRequestError("Data are empty", [
+        { field: "data", message: "can't be empty" },
+      ]);
+    }
     const { triggerDataExchange } = req.query;
     const dataProcessingId: string = req.body.dataProcessingId;
 
@@ -838,29 +921,80 @@ export const giveConsentUser = async (
       }
     }
 
-    const consent = new Consent({
+    //Heritance verification
+    const parentConsent = await Consent.findOne({
       privacyNotice: privacyNotice._id,
-      user: userId,
-      providerUserIdentifier: providerUserIdentifier,
-      consumerUserIdentifier: consumerUserIdentifier,
-      dataProvider: dataProvider?._id,
-      dataConsumer: dataConsumer?._id,
-      recipients: privacyNotice.recipients,
-      purposes: [...privacyNotice.purposes],
+      status: { $in: ["revoked", "terminated"] },
       data: data?.length > 0 ? data : [...privacyNotice.data],
-      status: "granted",
-      consented: true,
-      contract: privacyNotice.contract,
-      event: [consentEvent.given],
-      recipientThirdParties:
-        dataProcessingId && privacyNotice?.dataProcessings.length > 0
-          ? privacyNotice?.dataProcessings.find(
-              (element) => element.catalogId.toString() === dataProcessingId
-            )
-          : [],
+      child: null,
+      user: userId,
     });
+    let parentConsentId = null;
+    if (parentConsent) {
+      parentConsentId = parentConsent._id;
+    }
+
+    let consent;
+
+    if (event === "refused") {
+      consent = new Consent({
+        privacyNotice: privacyNotice._id,
+        user: userId,
+        providerUserIdentifier: providerUserIdentifier,
+        consumerUserIdentifier: consumerUserIdentifier,
+        dataProvider: dataProvider?._id,
+        dataConsumer: dataConsumer?._id,
+        recipients: privacyNotice.recipients,
+        purposes: [...privacyNotice.purposes],
+        parent: parentConsentId,
+        data: data?.length > 0 ? data : [...privacyNotice.data],
+        status: "granted",
+        consented: true,
+        contract: privacyNotice.contract,
+        event: [consentEvent.refused],
+        recipientThirdParties:
+          dataProcessingId && privacyNotice?.dataProcessings.length > 0
+            ? privacyNotice?.dataProcessings.find(
+                (element) => element.catalogId.toString() === dataProcessingId
+              )
+            : [],
+      });
+    } else if (event === "given") {
+      consent = new Consent({
+        privacyNotice: privacyNotice._id,
+        user: userId,
+        providerUserIdentifier: providerUserIdentifier,
+        consumerUserIdentifier: consumerUserIdentifier,
+        dataProvider: dataProvider?._id,
+        dataConsumer: dataConsumer?._id,
+        recipients: privacyNotice.recipients,
+        purposes: [...privacyNotice.purposes],
+        parent: parentConsentId,
+        data: data?.length > 0 ? data : [...privacyNotice.data],
+        status: "granted",
+        consented: true,
+        contract: privacyNotice.contract,
+        event: [consentEvent.given],
+        recipientThirdParties:
+          dataProcessingId && privacyNotice?.dataProcessings.length > 0
+            ? privacyNotice?.dataProcessings.find(
+                (element) => element.catalogId.toString() === dataProcessingId
+              )
+            : [],
+      });
+    } else {
+      return res
+        .status(400)
+        .json({ error: "Wrong event type, expected 'given' or 'refused'" });
+    }
 
     const newConsent = await consent.save();
+
+    if (parentConsent) {
+      await parentConsent.updateOne({
+        child: newConsent._id,
+      });
+    }
 
     if (triggerDataExchange) {
       return await triggerDataExchangeByConsentId(newConsent._id, res);
@@ -1931,6 +2065,7 @@ export const reConfirmConsent = async (
   next: NextFunction
 ) => {
   try {
+    const { triggerDataExchange } = req.query;
     const { consentId } = req.params;
     const consent = await Consent.findOne({
       _id: consentId,
@@ -1940,8 +2075,13 @@ export const reConfirmConsent = async (
     });
     if (!consent) return res.status(404).json({ error: "consent not found" });
     consent.event.push(consentEvent.reConfirmed);
-    consent.save();
-    return res.status(200).json(await consentToConsentReceipt(consent));
+    await consent.save();
+
+    if (triggerDataExchange) {
+      return await triggerDataExchangeByConsentId(consent._id, res);
+    } else {
+      return res.status(200).json(await consentToConsentReceipt(consent));
+    }
   } catch (err) {
     Logger.error(err);
     next(err);
@@ -1966,6 +2106,88 @@ export const terminateConsent = async (
     consent.event.push(consentEvent.terminated);
     consent.save();
     return res.status(200).json(await consentToConsentReceipt(consent));
+  } catch (err) {
+    Logger.error(err);
+    next(err);
+  }
+};
+
+/**
+ * @description redirect to the PDI frontend if ENV var configured
+ * @param req
+ * @param res
+ * @param next
+ */
+export const redirectPDI = async (
+  req: Request,
+  res: Response,
+  next: NextFunction
+) => {
+  try {
+    if (process.env.PDI_ENDPOINT) {
+      const { privacyNoticeId, userIdentifier } = req.query;
+      let consent = null;
+
+      if (privacyNoticeId) {
+        consent = await Consent.findOne({
+          $and: [
+            {
+              privacyNotice: new mongoose.Types.ObjectId(
+                privacyNoticeId.toString()
+              ),
+            },
+            {
+              status: {
+                $nin: ["terminated", "revoked"],
+              },
+            },
+            {
+              child: { $exists: false },
+            },
+            {
+              $or: [
+                {
+                  providerUserIdentifier: new mongoose.Types.ObjectId(
+                    userIdentifier.toString()
+                  ),
+                },
+                {
+                  consumerUserIdentifier: new mongoose.Types.ObjectId(
+                    userIdentifier.toString()
+                  ),
+                },
+              ],
+            },
+          ],
+        });
+      }
+
+      if (consent) {
+        res.redirect(
+          `${process.env.PDI_ENDPOINT}?userIdentifier=${
+            req.query.userIdentifier
+          }&participant=${req.session?.userParticipant.id}${
+            req.query.privacyNoticeId
+              ? `&privacyNoticeId=${req.query.privacyNoticeId}`
+              : ""
+          }&consentId=${consent.id}`
+        );
+      } else {
+        res.redirect(
+          `${process.env.PDI_ENDPOINT}?userIdentifier=${
+            req.query.userIdentifier
+          }&participant=${req.session?.userParticipant.id}${
+            req.query.privacyNoticeId
+              ? `&privacyNoticeId=${req.query.privacyNoticeId}`
+              : ""
+          }`
+        );
+      }
+    } else {
+      res.status(400).json({
+        message: "No PDI endpoint setup.",
+      });
+    }
   } catch (err) {
     Logger.error(err);
     next(err);

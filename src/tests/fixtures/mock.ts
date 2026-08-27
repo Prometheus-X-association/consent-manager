@@ -8,6 +8,7 @@ const pdiURL = "http://localhost:5173";
 export const setupnockMocks = (providerBase64: string) => {
   // Mocking provider service offerings
   nock(`${testUrl}/v1`)
+    .persist()
     .get("/catalog/serviceofferings/65e04da4b37bfc192ddcbdd1")
     .reply(200, {
       "@context": "https://host.docker.internal:4040/v1/serviceoffering",

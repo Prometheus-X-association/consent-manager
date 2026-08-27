@@ -1,30 +1,44 @@
+export const now = () => {
+  return new Date().toISOString();
+};
+
 export const consentEvent = {
   given: {
-    eventTime: new Date().toISOString(),
+    get eventTime() {
+      return now();
+    },
     validityDuration: "0",
     eventType: "explicit",
     eventState: "consent given",
   },
   revoked: {
-    eventTime: new Date().toISOString(),
+    get eventTime() {
+      return now();
+    },
     validityDuration: "0",
     eventType: "explicit",
     eventState: "consent revoked",
   },
   refused: {
-    eventTime: new Date().toISOString(),
+    get eventTime() {
+      return now();
+    },
     validityDuration: "0",
     eventType: "explicit",
     eventState: "consent refused",
   },
   reConfirmed: {
-    eventTime: new Date().toISOString(),
+    get eventTime() {
+      return now();
+    },
     validityDuration: "0",
     eventType: "explicit",
     eventState: "consent re-confirmed",
   },
   terminated: {
-    eventTime: new Date().toISOString(),
+    get eventTime() {
+      return now();
+    },
     validityDuration: "0",
     eventType: "explicit",
     eventState: "consent terminated",

@@ -9,6 +9,7 @@ import fs from "fs";
 import contractsSimulatedRouter from "./simulated/contract/router";
 import { initSession } from "./middleware/session";
 import { Agent, ConsentAgent } from "contract-agent";
+import { morganLogs } from "./libs/loggers";
 
 export const startServer = async (
   testPort?: number,
@@ -28,6 +29,8 @@ export const startServer = async (
   app.set("trust proxy", true);
 
   app.use(initSession());
+
+  app.use(morganLogs);
 
   //Consent Agent setup
   const configFilePath = path.resolve(

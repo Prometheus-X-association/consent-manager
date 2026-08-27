@@ -1,6 +1,6 @@
 {
   "name": "consent-manager",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Prometheus-X Consent Manager",
   "main": "dist/src/index.js",
   "scripts": {
@@ -91,8 +91,7 @@
     "@mailchimp/mailchimp_transactional": "^1.0.50",
     "axios": "^1.4.0",
     "axios-cache-interceptor": "^1.5.3",
-    "bcrypt": "^5.1.0",
-    "chai-http": "^4.4.0",
+    "bcryptjs": "^3.0.2",
     "connect-mongo": "^5.0.0",
     "contract-agent": "https://gitpkg.now.sh/Prometheus-X-association/contract-consent-agent/contract-agent?v1.0.0",
     "copyfiles": "^2.4.1",
@@ -106,7 +105,6 @@
     "jsonwebtoken": "^9.0.1",
     "lodash": "^4.17.21",
     "mkdirp": "^3.0.1",
-    "mongodb-memory-server": "^9.1.7",
     "mongoose": "^7.3.2",
     "morgan": "^1.10.0",
     "nodemailer": "^6.9.8",
