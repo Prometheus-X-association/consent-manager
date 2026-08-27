@@ -332,7 +332,6 @@ describe("Users Routes Tests", () => {
           selfDescription: testParticipant3.selfDescriptionURL,
         })
         .expect(200);
-      console.log(response);
       expect(response.body).to.have.property("participantExists", true);
       expect(response.body).to.have.property("userIdentifierExists", false);
       expect(response.body).to.have.property("userIdentifier");
