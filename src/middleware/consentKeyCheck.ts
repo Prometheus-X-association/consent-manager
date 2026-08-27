@@ -6,10 +6,10 @@ export const consentKeyCheck = async (
   next: NextFunction
 ) => {
   try {
-    if (req.headers["x-visionstrust-consent-key"]) {
+    if (req.headers["x-catalog-consent-key"]) {
       if (
-        req.headers["x-visionstrust-consent-key"] !==
-        process.env.X_VISIONSTRUST_CONSENT_KEY
+        req.headers["x-catalog-consent-key"] !==
+        process.env.X_CATALOG_CONSENT_KEY
       ) {
         return res.status(401).json({ message: "Invalid consent key" });
       }

@@ -25,7 +25,7 @@ describe("Users Routes Tests", () => {
   before(async () => {
     serverInstance = await startServer(9090);
 
-    process.env.X_VISIONSTRUST_CONSENT_KEY = "test-consent-key";
+    process.env.X_CATALOG_CONSENT_KEY = "test-consent-key";
 
     //create new participant
     const participantData = testParticipant3;
@@ -310,7 +310,7 @@ describe("Users Routes Tests", () => {
     it("should get a all to false", async () => {
       const response = await supertest(serverInstance.app)
         .post(`/v1/users/identifier/search`)
-        .set("x-visionstrust-consent-key", "test-consent-key")
+        .set("x-catalog-consent-key", "test-consent-key")
         .send({
           email: testUser1.email,
           selfDescription: "test",
@@ -326,7 +326,7 @@ describe("Users Routes Tests", () => {
     it("should get a participant exist but no userIdentifier and user", async () => {
       const response = await supertest(serverInstance.app)
         .post(`/v1/users/identifier/search`)
-        .set("x-visionstrust-consent-key", "test-consent-key")
+        .set("x-catalog-consent-key", "test-consent-key")
         .send({
           email: "test",
           selfDescription: testParticipant3.selfDescriptionURL,
@@ -342,7 +342,7 @@ describe("Users Routes Tests", () => {
     it("should get user identifier by email", async () => {
       const response = await supertest(serverInstance.app)
         .post(`/v1/users/identifier/search`)
-        .set("x-visionstrust-consent-key", "test-consent-key")
+        .set("x-catalog-consent-key", "test-consent-key")
         .send({
           email: testUser1.email,
           selfDescription: testParticipant3.selfDescriptionURL,
@@ -360,10 +360,7 @@ describe("Users Routes Tests", () => {
     it("should get user by email", async () => {
       const response = await supertest(serverInstance.app)
         .post(`/v1/users/search`)
-        .set(
-          "x-visionstrust-consent-key",
-          process.env.X_VISIONSTRUST_CONSENT_KEY
-        )
+        .set("x-catalog-consent-key", process.env.X_CATALOG_CONSENT_KEY)
         .send({
           email: testUser1.email,
         })
@@ -375,10 +372,7 @@ describe("Users Routes Tests", () => {
     it("should not get user by email", async () => {
       const response = await supertest(serverInstance.app)
         .post(`/v1/users/search`)
-        .set(
-          "x-visionstrust-consent-key",
-          process.env.X_VISIONSTRUST_CONSENT_KEY
-        )
+        .set("x-catalog-consent-key", process.env.X_CATALOG_CONSENT_KEY)
         .send({
           email: "test@test.com",
         })
@@ -392,10 +386,7 @@ describe("Users Routes Tests", () => {
     it("should inject user identifier", async () => {
       const response = await supertest(serverInstance.app)
         .post(`/v1/users/identifier`)
-        .set(
-          "x-visionstrust-consent-key",
-          process.env.X_VISIONSTRUST_CONSENT_KEY
-        )
+        .set("x-catalog-consent-key", process.env.X_CATALOG_CONSENT_KEY)
         .send({
           userId: userId,
           userIdentifiers: [
