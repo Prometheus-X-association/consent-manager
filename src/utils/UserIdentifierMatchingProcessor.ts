@@ -26,9 +26,15 @@ export const checkUserIdentifier = async (
         $or: [{ identifiers: verifyUserIdentifier._id }, { email }],
       });
 
-    //if user is found add new userIdentifier to user
+    //if user is found add both userIdentifiers to user
     if (user) {
-      user.identifiers.push(new mongoose.Types.ObjectId(userIdentifier));
+      const idsToAttach = [
+        new mongoose.Types.ObjectId(verifyUserIdentifier._id),
+        new mongoose.Types.ObjectId(userIdentifier),
+      ];
+      for (const id of idsToAttach) {
+        if (!user.identifiers.includes(id)) user.identifiers.push(id);
+      }
       await user.save();
     } else {
       const newUser = new User({

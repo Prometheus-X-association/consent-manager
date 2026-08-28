@@ -15,9 +15,9 @@ export const consentKeyCheck = async (
       }
       next();
     } else {
-      return res
-        .status(401)
-        .json({ message: "Authorization header missing or invalid" });
+      return res.status(401).json({
+        message: "x-catalog-consent-key header missing or invalid",
+      });
     }
   } catch (err) {
     next(err);

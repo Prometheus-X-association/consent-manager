@@ -10,6 +10,7 @@ import {
   testUser1,
   testUser2,
 } from "./fixtures/testAccount";
+import mongoose from "mongoose";
 
 describe("Users Routes Tests", () => {
   let serverInstance: {
@@ -26,6 +27,14 @@ describe("Users Routes Tests", () => {
     serverInstance = await startServer(9090);
 
     process.env.X_CATALOG_CONSENT_KEY = "test-consent-key";
+
+    try {
+      await mongoose.connect(process.env.MONGO_URI_TEST);
+      await mongoose.connection.dropDatabase();
+    } catch (error) {
+      console.error("Error connecting to MongoDB:", error);
+      throw error;
+    }
 
     //create new participant
     const participantData = testParticipant3;
@@ -63,7 +72,7 @@ describe("Users Routes Tests", () => {
       .post(`/v1/users/signup`)
       .send(user1);
 
-    userId = firstUserSignup.body._id;
+    userId = firstUserSignup.body.user._id;
 
     //create user identifier for the two participants
     const participantUserIdentifierResponse = await supertest(
@@ -261,8 +270,8 @@ describe("Users Routes Tests", () => {
             { email: "user2@example.com", internalID: "id2" },
           ],
         });
-      expect(400);
-      //error message inapropriate
+      expect(response.status).to.equal(200);
+      expect(response.body).to.be.an("array").that.is.empty;
     });
 
     it("should fail to register user identifiers with missing fields", async () => {

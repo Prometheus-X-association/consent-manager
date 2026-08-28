@@ -199,11 +199,11 @@ export interface IConsent extends Document, AllSchemas {
   data: string[];
 
   /**
-   * Sting that contains a child consent id
+   * ObjectId that references the child consent
    */
   child?: Types.ObjectId;
   /**
-   * String that contains a parent consent id
+   * ObjectId that references the parent consent
    */
   parent?: Types.ObjectId;
 

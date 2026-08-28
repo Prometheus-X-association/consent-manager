@@ -149,7 +149,7 @@ export const verifyUserJWT = async (
     });
 
     if (userExisitingIdentifier) {
-      req.userIdentifier = {
+      req.user = {
         id: userExisitingIdentifier._id,
       };
       next();

@@ -12,7 +12,6 @@ import { USER_SELECTION } from "../utils/schemaSelection";
 import { checkUserIdentifier } from "../utils/UserIdentifierMatchingProcessor";
 import Participant from "../models/Participant/Participant.model";
 import mongoose from "mongoose";
-import { string } from "joi";
 
 /**
  * Registers a new user in the PDI
