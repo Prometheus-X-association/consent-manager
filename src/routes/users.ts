@@ -8,8 +8,12 @@ import {
   me,
   updateUserById,
   deleteUserById,
+  getUserIdentifierByEmail,
+  getUserByEmail,
+  injectUserIdentifier,
 } from "../controllers/usersController";
 import { verifyParticipantJWT, verifyUserJWT } from "../middleware/auth";
+import { consentKeyCheck } from "../middleware/consentKeyCheck";
 const r: Router = Router();
 
 r.post("/signup", signup);
@@ -31,6 +35,12 @@ r.delete("/logout", async (req, res, next) => {
   }
 });
 r.get("/me", verifyUserJWT, me);
+
+r.post("/identifier/search", consentKeyCheck, getUserIdentifierByEmail);
+
+r.post("/search", consentKeyCheck, getUserByEmail);
+
+r.post("/identifier", consentKeyCheck, injectUserIdentifier);
 
 // Used by Participants / Data Space Connectors to register a end user from their platform
 // This might change when using more decentralized identifiers for end users

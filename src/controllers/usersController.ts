@@ -10,6 +10,8 @@ import { OAUTH_SCOPES } from "../libs/OAuth/scopes";
 import { userToSelfDescription } from "../libs/jsonld/selfDescriptions";
 import { USER_SELECTION } from "../utils/schemaSelection";
 import { checkUserIdentifier } from "../utils/UserIdentifierMatchingProcessor";
+import Participant from "../models/Participant/Participant.model";
+import mongoose from "mongoose";
 
 /**
  * Registers a new user in the PDI
@@ -285,4 +287,108 @@ export const registerUserIdentifiers = async (
   } catch (err) {
     next(err);
   }
+};
+
+/**
+ * Finds a user identifier by email
+ * @param req
+ * @param res
+ * @returns
+ */
+export const getUserIdentifierByEmail = async (req: Request, res: Response) => {
+  const { selfDescription, email } = req.body;
+  const results = {
+    participantExists: false,
+    participantId: "",
+    userIdentifierExists: false,
+    userIdentifier: "",
+    userExists: false,
+  };
+
+  let userIdentifier = null;
+
+  const participant = await Participant.findOne({
+    selfDescriptionURL: selfDescription,
+  });
+
+  if (participant) {
+    results.participantExists = true;
+    userIdentifier = await UserIdentifier.findOne({
+      attachedParticipant: new mongoose.Types.ObjectId(participant._id),
+      email: email,
+    }).lean();
+    results.participantId = participant._id;
+  }
+
+  if (userIdentifier) {
+    results.userIdentifierExists = true;
+    results.userIdentifier = userIdentifier._id;
+    const users = await User.find({ email: userIdentifier.email });
+
+    let user = null;
+    users.filter((u) => {
+      u.identifiers.forEach((identifier) => {
+        if (identifier.toString() === results.userIdentifier.toString()) {
+          user = u;
+        }
+      });
+    });
+
+    if (user) {
+      results.userExists = true;
+    }
+  }
+
+  return res.status(200).json(results);
+};
+
+export const getUserByEmail = async (req: Request, res: Response) => {
+  const { email } = req.body;
+  const user = await User.findOne({
+    email: email,
+  })
+    .select("-oauth -password")
+    .lean();
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  } else {
+    return res.status(200).json(user);
+  }
+};
+
+export const injectUserIdentifier = async (req: Request, res: Response) => {
+  const { userId, userIdentifiers } = req.body;
+
+  const user = await User.findById(userId);
+
+  if (!user) {
+    return res.status(404).json({ message: "User not found" });
+  } else {
+    for (const userIdentifier of userIdentifiers) {
+      const currentUserIdentifier = await UserIdentifier.findById(
+        userIdentifier
+      ).lean();
+
+      if (!currentUserIdentifier) {
+        return res.status(404).json({ message: "User Identifier not found" });
+      }
+
+      if (
+        user.identifiers.includes(new mongoose.Types.ObjectId(userIdentifier))
+      ) {
+        continue;
+      }
+
+      user.identifiers.push(new mongoose.Types.ObjectId(userIdentifier));
+    }
+  }
+
+  const savedUser = await user.save();
+
+  const sanitizedUser = await User.findById(savedUser._id)
+    .select("-password -oauth")
+    .lean();
+
+  return res.status(200).json(sanitizedUser);
 };

@@ -85,10 +85,10 @@ export const testupdatedPrticipant = {
 };
 export const testParticipant3 = {
   legalName: "provider2",
-  identifier: "656dfb3e282d47cfa6b66b2c",
-  did: "https://api.test.com/v1/catalog/participants/656dfb3e282d47cfa6b66b2c",
+  identifier: "656dfb3e282d47cfa6b66b2d",
+  did: "https://api.test.com/v1/catalog/participants/656dfb3e282d47cfa6b66b2d",
   selfDescriptionURL:
-    "https://api.test.com/v1/catalog/participants/656dfb3e282d47cfa6b66b2c",
+    "https://api.test.com/v1/catalog/participants/656dfb3e282d47cfa6b66b2d",
   email: "provider2@email.com",
   endpoints: {
     dataExport: "https://test.consent/data/export",

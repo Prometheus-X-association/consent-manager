@@ -12,6 +12,7 @@ import {
   giveConsentOnEmailValidation,
   giveConsentUser,
   reConfirmConsent,
+  redirectPDI,
   refuseConsent,
   resumeConsent,
   revokeConsent,
@@ -135,25 +136,6 @@ r.post(
   terminateConsent
 );
 
-r.get("/pdi/iframe", verifyParticipantJWT, (req, res) => {
-  // let parsedUrl = url.parse(req.url);
-  // res.set("Authorization", `Bearer ${req.query.participant}`);
-
-  if (process.env.PDI_ENDPOINT) {
-    res.redirect(
-      `${process.env.PDI_ENDPOINT}?userIdentifier=${
-        req.query.userIdentifier
-      }&participant=${req.session?.userParticipant.id}${
-        req.query.privacyNoticeId
-          ? `&privacyNoticeId=${req.query.privacyNoticeId}`
-          : ""
-      }`
-    );
-  } else {
-    res.json({
-      message: "No PDI endpoint setup.",
-    });
-  }
-});
+r.get("/pdi/iframe", verifyParticipantJWT, redirectPDI);
 
 export default r;

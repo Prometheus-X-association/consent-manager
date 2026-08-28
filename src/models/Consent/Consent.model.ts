@@ -59,6 +59,8 @@ const schema = new Schema<IConsent>(
         serviceOffering: String,
       },
     ],
+    parent: { type: Schema.Types.ObjectId, ref: "Consent" },
+    child: { type: Schema.Types.ObjectId, ref: "Consent" },
     status: {
       type: String,
       enum: [

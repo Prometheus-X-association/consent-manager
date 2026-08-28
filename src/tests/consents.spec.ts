@@ -1,12 +1,9 @@
 import { expect } from "chai";
 import supertest from "supertest";
 import { Application } from "express";
-import { MongoMemoryServer } from "mongodb-memory-server";
 import { startServer } from "../server";
 import { IncomingMessage, ServerResponse } from "http";
 import * as http from "http";
-import MockAdapter from "axios-mock-adapter";
-import axios from "axios";
 import crypto from "crypto";
 import nock from "nock";
 import { setupnockMocks } from "./fixtures/mock";
@@ -58,6 +55,7 @@ describe("Consent Routes Tests", function () {
     }
 
     serverInstance = await startServer(9090);
+
     // Create Provider
     const providerData = testProvider1;
     const providerResponse = await supertest(serverInstance.app)
@@ -151,7 +149,7 @@ describe("Consent Routes Tests", function () {
   it("should get available exchanges", async () => {
     setupnockMocks(providerBase64);
     const response = await supertest(serverInstance.app)
-      .get(`/v1/consents/exchanges/as?as=provider`)
+      .get(`/v1/consents/exchanges/provider`)
       .set("Authorization", providerJWT)
       .expect(200);
     expect(response.body).to.have.property("participant");
@@ -164,7 +162,9 @@ describe("Consent Routes Tests", function () {
   it("should get the privacy notices", async () => {
     setupnockMocks(providerBase64);
     const response = await supertest(serverInstance.app)
-      .get(`/v1/consents/${userId}/${providerBase64}/${consumerBase64}`)
+      .get(
+        `/v1/consents/${providerUserIdentifier}/${providerBase64}/${consumerBase64}`
+      )
       .set("x-user-key", providerUserIdentifier)
       .expect(200);
     privacyNoticeId = response.body[0]?._id;
@@ -215,8 +215,10 @@ describe("Consent Routes Tests", function () {
       .send({
         privacyNoticeId: privacyNoticeId,
         dataProcessingId: dataProcessingId,
+        event: "given",
       })
       .expect(201);
+
     consentId = response.body.record.recordId;
     expect(response.body.event[0].eventState).to.equal("consent given");
     expect(response.body.piiProcessing.privacyNotice).to.equal(privacyNoticeId);
@@ -270,14 +272,14 @@ describe("Consent Routes Tests", function () {
     ).to.equal("consent revoked");
   });
 
-  // generate pdi-iframe
-  it("generate pdi-iframe", async () => {
+  // generate pdi-iframe : userIdentifier est desormais obligatoire
+  it("should not generate pdi-iframe without userIdentifier", async () => {
     setupnockMocks(providerBase64);
-    //TODO //nock PDI_ENDPOINT
     const response = await supertest(serverInstance.app)
       .get(`/v1/consents/pdi/iframe`)
       .set("Authorization", providerJWT)
-      .expect(302);
+      .expect(400);
+    expect(response.body).to.have.property("message", "Missing userIdentifier");
   });
 
   // generate pdi-iframe by privacy notice Id
@@ -347,7 +349,7 @@ describe("Consent Routes Tests", function () {
     setupnockMocks(providerBase64);
     const response = await supertest(serverInstance.app)
       .post(`/v1/consents/user`)
-      .send({ privacyNoticeId: privacyNoticeId })
+      .send({ privacyNoticeId: privacyNoticeId, event: "given" })
       .set("Authorization", userJwt)
       .expect(201);
     expect(response.body.event[0].eventState).to.equal("consent given");
@@ -376,45 +378,39 @@ describe("Consent Routes Tests", function () {
     expect(response.body).to.have.property("consents");
   });
 
-  // // getUserConsentById by user
-  // it("should getUserConsentById - by user", async () => {
-  //   const response = await supertest(serverInstance.app)
-  //     .get(`/v1/consents/me/${consentId}`)
-  //     .set("x-user-key", providerUserIdentifier)
-  //     .expect(200);
-  //   expect(response.body._id).to.equal(consentId);
-  //   expect(response.body.providerUserIdentifier).to.equal(
-  //     providerUserIdentifier
-  //   );
-  //   expect(response.body.consumerUserIdentifier).to.equal(
-  //     consumerUserIdentifier
-  //   );
-  //   expect(response.body.consented).to.equal(true);
-  //   expect(response.body.dataProvider).to.equal(providerId);
-  //   expect(response.body.dataConsumer).to.equal(consumerId);
-  //   expect(response.body.status).to.equal("granted");
-  //   expect(response.body.privacyNotice).to.equal(privacyNoticeId);
-  // });
+  // getUserConsentById by user
+  it("should getUserConsentById - by user", async () => {
+    const response = await supertest(serverInstance.app)
+      .get(`/v1/consents/me/${consentId}`)
+      .set("x-user-key", providerUserIdentifier)
+      .expect(200);
+    // La route renvoie un consent receipt, pas le document Consent brut
+    expect(response.body.record.recordId).to.equal(consentId);
+    expect(response.body.piiProcessing.privacyNotice).to.equal(privacyNoticeId);
+    expect(response.body.event).to.be.an("array").that.is.not.empty;
+    expect(
+      response.body.partyIdentification.map(
+        (p: { partyType: string }) => p.partyType
+      )
+    ).to.have.members(["provider", "consumer"]);
+  });
 
   // // getUserConsentById by participant
-  // it("should getUserConsentById - by participant", async () => {
-  //   const response = await supertest(serverInstance.app)
-  //     .get(`/v1/consents/participants/${providerUserIdentifier}/${consentId}`)
-  //     .set("Authorization", providerJWT)
-  //     .expect(200);
-  //   expect(response.body._id).to.equal(consentId);
-  //   expect(response.body.providerUserIdentifier).to.equal(
-  //     providerUserIdentifier
-  //   );
-  //   expect(response.body.consumerUserIdentifier).to.equal(
-  //     consumerUserIdentifier
-  //   );
-  //   expect(response.body.consented).to.equal(true);
-  //   expect(response.body.dataProvider).to.equal(providerId);
-  //   expect(response.body.dataConsumer).to.equal(consumerId);
-  //   expect(response.body.status).to.equal("granted");
-  //   expect(response.body.privacyNotice).to.equal(privacyNoticeId);
-  // });
+  it("should getUserConsentById - by participant", async () => {
+    const response = await supertest(serverInstance.app)
+      .get(`/v1/consents/participants/${providerUserIdentifier}/${consentId}`)
+      .set("Authorization", providerJWT)
+      .expect(200);
+    // La route renvoie un consent receipt, pas le document Consent brut
+    expect(response.body.record.recordId).to.equal(consentId);
+    expect(response.body.piiProcessing.privacyNotice).to.equal(privacyNoticeId);
+    expect(response.body.event).to.be.an("array").that.is.not.empty;
+    expect(
+      response.body.partyIdentification.map(
+        (p: { partyType: string }) => p.partyType
+      )
+    ).to.have.members(["provider", "consumer"]);
+  });
 
   // attachTokenToConsent
   it("should attachTokenToConsent", async () => {
@@ -461,7 +457,6 @@ describe("Consent Routes Tests", function () {
     expect(response.body).to.have.property("verified", true);
   });
 
-  ///**********************//
   // Test Error
   describe("Test error", () => {
     const nonExistentId = "65d624e8ce9bcded716692f8";
@@ -475,15 +470,15 @@ describe("Consent Routes Tests", function () {
       );
     });
 
-    //     // getUserConsentById by user //error:  -- Error:
-    // it("should not getUserConsent by a non-existent Id", async () => {
-    //   const response = await supertest(serverInstance.app)
-    //     .get(`/v1/consents/me/${nonExistentId}`)
-    //     .set("x-user-key", providerUserIdentifier)
-    //     .expect(404);
-    //     console.log('response getUserConsent',response.body)
-    //     // expect(response.body.Error).to.equal("Consent not found");
-    // });
+    // getUserConsentById by user //error:  -- Error:
+    it("should not getUserConsent by a non-existent Id", async () => {
+      const response = await supertest(serverInstance.app)
+        .get(`/v1/consents/me/${nonExistentId}`)
+        .set("x-user-key", providerUserIdentifier)
+        .expect(404);
+      console.log("response getUserConsent", response.body);
+      // expect(response.body.Error).to.equal("Consent not found");
+    });
 
     // getAvailableExchanges
     it("should not get available exchanges with no authorization", async () => {
@@ -494,16 +489,14 @@ describe("Consent Routes Tests", function () {
     });
 
     //FAIL: 200
-    // it("should not get available exchanges with no as parameter", async () => {
-    //   setupnockMocks(providerBase64);
-    //   const response = await supertest(serverInstance.app)
-    //     .get(`/v1/consents/exchanges/as`)
-    //     .set("Authorization", providerJWT)
-    //     .expect(400);
-    //     expect(response.body.error).to.equal("Missing parameters");
-    // });
-
-    //FAIL: 500
+    it("should not get available exchanges with no as parameter", async () => {
+      setupnockMocks(providerBase64);
+      const response = await supertest(serverInstance.app)
+        .get(`/v1/consents/exchanges/as`)
+        .set("Authorization", providerJWT)
+        .expect(400);
+      expect(response.body.error).to.equal("Missing parameters");
+    });
 
     // getUserAvailableExchanges
     it("should not getUserAvailableExchanges for a non-existent participant", async () => {
@@ -528,27 +521,30 @@ describe("Consent Routes Tests", function () {
       );
     });
 
-    //FAIL: 200
-    // it("should not get privacy notices by participant with an invalid UserIdentifierId", async () => {
-    //   setupnockMocks(providerBase64);
-    //   const response = await supertest(serverInstance.app)
-    //     .get(`/v1/consents/${nonExistentId}/${providerBase64}/${consumerBase64}`)
-    //     .set("x-user-key", providerUserIdentifier)
-    //     .expect(404);
-    //   console.log(response.body)
-    //   expect(response.body.error).to.equal("User identifier not found");
-    // });
+    it("should not get privacy notices by participant with an invalid UserIdentifierId", async () => {
+      setupnockMocks(providerBase64);
+      const response = await supertest(serverInstance.app)
+        .get(
+          `/v1/consents/${nonExistentId}/${providerBase64}/${consumerBase64}`
+        )
+        .set("x-user-key", providerUserIdentifier)
+        .expect(404);
+      console.log(response.body);
+      expect(response.body.error).to.equal("User identifier not found");
+    });
 
     //FAIL: 200
-    // it("should not get privacy notices for a consent based on non existing contracts between two participant", async () => {
-    //   setupnockMocks(providerBase64);
-    //   const response = await supertest(serverInstance.app)
-    //     .get(`/v1/consents/${providerUserIdentifier}/${providerBase64}/${consumer2Base64}`)
-    //     .set("x-user-key", providerUserIdentifier)
-    //     .expect(404);
-    //   console.log(response.body)
-    //   expect(response.body.error).to.equal("No contracts found");
-    // });
+    it("should not get privacy notices for a consent based on non existing contracts between two participant", async () => {
+      setupnockMocks(providerBase64);
+      const response = await supertest(serverInstance.app)
+        .get(
+          `/v1/consents/${providerUserIdentifier}/${providerBase64}/${consumer2Base64}`
+        )
+        .set("x-user-key", providerUserIdentifier)
+        .expect(404);
+      console.log(response.body);
+      expect(response.body.error).to.equal("No contracts found");
+    });
 
     // getUserPrivacyNoticesByContract
     it("should not getUserPrivacyNotices with no authorization", async () => {
@@ -614,76 +610,74 @@ describe("Consent Routes Tests", function () {
 
     //FAIL: Refused
     // // giveConsentUser
-    // it("should not giveConsentUser with no authorization", async () => {
-    //   setupnockMocks(providerBase64);
-    //   const response = await supertest(serverInstance.app)
-    //     .post(`v1/consents/user`)
-    //     .send({ privacyNoticeId: privacyNoticeId })
-    //     .set("Authorization", null)
-    //     .expect(401);
-    //     expect(response.body.message).to.equal("user unauthenticated");
-    // });
+    it("should not giveConsentUser with no authorization", async () => {
+      setupnockMocks(providerBase64);
+      const response = await supertest(serverInstance.app)
+        .post(`/v1/consents/user`)
+        .send({ privacyNoticeId: privacyNoticeId })
+        .set("Authorization", null)
+        .expect(401);
+      expect(response.body.message).to.equal(
+        "Authorization header missing or invalid"
+      );
+    });
 
-    // it("should not giveConsentUser with no privacyNoticeId in body", async () => {
-    //   setupnockMocks(providerBase64);
-    //   const response = await supertest(serverInstance.app)
-    //     .post(`v1/consents/user`)
-    //     .set("Authorization", userJwt)
-    //     .expect(400);
-    //     expect(response.body.error).to.equal("Missing privacyNoticeId");
-    //   });
+    it("should not giveConsentUser with no privacyNoticeId in body", async () => {
+      setupnockMocks(providerBase64);
+      const response = await supertest(serverInstance.app)
+        .post(`/v1/consents/user`)
+        .set("Authorization", userJwt)
+        .expect(400);
+      expect(response.body.error).to.equal("Missing privacyNoticeId");
+    });
 
-    // it("should not giveConsentUser with non-existent privacyNoticeId", async () => {
-    //   setupnockMocks(providerBase64);
-    //   const response = await supertest(serverInstance.app)
-    //     .post(`v1/consents/user`)
-    //     .send({ privacyNoticeId: nonExistentId })
-    //     .set("Authorization", userJwt)
-    //     .expect(404);
-    //     expect(response.body.error).to.equal("privacy notice not found");
-    //   });
+    it("should not giveConsentUser with non-existent privacyNoticeId", async () => {
+      setupnockMocks(providerBase64);
+      const response = await supertest(serverInstance.app)
+        .post(`/v1/consents/user`)
+        .send({ privacyNoticeId: nonExistentId })
+        .set("Authorization", userJwt)
+        .expect(404);
+      expect(response.body.error).to.equal("privacy notice not found");
+    });
 
     //FAIL: Refused
     // resume consent
-    // it("should not resume a non-existent consent", async () => {
-    //   setupnockMocks(providerBase64);
-    //   const response = await supertest(serverInstance.app)
-    //     .post(`v1/consents/${nonExistentId}/resume`)
-    //     .send({
-    //       internalID: userId,
-    //       email: testUser1.email,
-    //     })
-    //     .set("Authorization", providerJWT)
-    //     .expect(404);
-    //     expect(response.body.Error).to.equal("consent not found");
-    // });
+    it("should not resume a non-existent consent", async () => {
+      setupnockMocks(providerBase64);
+      const response = await supertest(serverInstance.app)
+        .post(`/v1/consents/${nonExistentId}/resume`)
+        .send({
+          internalID: userId,
+          email: testUser1.email,
+        })
+        .set("Authorization", providerJWT)
+        .expect(404);
+      expect(response.body.error).to.equal("consent not found");
+    });
 
-    //TODO: consent on status draft et pending
-    // it("resumeConsent", async () => {
-    //   setupnockMocks(providerBase64);
-    //   const response = await supertest(serverInstance.app)
-    //     .post(`v1/consents/${consentId}/resume`)
-    //     .send({
-    //       internalID: providerUserIdentifier,
-    //       email: testUser1.email,
-    //     })
-    //     .set("Authorization", providerJWT)
-    //     .expect(400);
-    //     expect(response.body.error).to.equal("The consent can't be resume");
-    // });
-
-    //FAIL:  error: Consent not found -- Error: Consent not found
+    it("resumeConsent", async () => {
+      setupnockMocks(providerBase64);
+      const response = await supertest(serverInstance.app)
+        .post(`/v1/consents/${consentId}/resume`)
+        .send({
+          internalID: providerUserIdentifier,
+          email: testUser1.email,
+        })
+        .set("Authorization", providerJWT)
+        .expect(400);
+      expect(response.body.error).to.equal("The consent can't be resume");
+    });
 
     // revokeConsent
-    // it("should fail to revoke non existent consent", async () => {
-    //   setupnockMocks(providerBase64);
-    //   const response = await supertest(serverInstance.app)
-    //     .delete(`/v1/consents/${nonExistentId}`)
-    //     .set("x-user-key", providerUserIdentifier)
-    //     .expect(404);
-    //     console.log(response.body)
-    //   expect(response.body.error).to.equal("consent not found");
-    // });
+    it("should fail to revoke non existent consent", async () => {
+      setupnockMocks(providerBase64);
+      const response = await supertest(serverInstance.app)
+        .delete(`/v1/consents/${nonExistentId}`)
+        .set("x-user-key", providerUserIdentifier)
+        .expect(404);
+      expect(response.body.error).to.equal("Consent not found");
+    });
 
     // trigger dataExchange
     it("should not trigger data exchange for a non-existent consent", async () => {
@@ -747,16 +741,15 @@ describe("Consent Routes Tests", function () {
     });
 
     // // generate iframe
-    //     it("should respond with JSON message if no PDI endpoint setup", async () => {
-    //       const response = await supertest(serverInstance.app)
-    //         .get(`v1/consents/pdi/iframe`)
-    //         .set("Authorization", providerJWT)
-    //         .query({
-    //           userIdentifier: providerUserIdentifier,
-    //           privacyNoticeId: privacyNoticeId,
-    //         })
-    //         .expect("302"); // à vérifier
-    //       expect(response.body.message).to.equal("No PDI endpoint setup.");
-    //     });
+    it("should respond with JSON message if no PDI endpoint setup", async () => {
+      const response = await supertest(serverInstance.app)
+        .get(`/v1/consents/pdi/iframe`)
+        .set("Authorization", providerJWT)
+        .query({
+          userIdentifier: providerUserIdentifier,
+          privacyNoticeId: privacyNoticeId,
+        })
+        .expect(302);
+    });
   });
 });

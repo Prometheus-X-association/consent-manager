@@ -373,7 +373,7 @@ export const getPrivacyNoticesFromContract = async (
 
   if (contractURI.includes("contracts")) {
     // Populate the Privacy Notice
-    const pn = ecosystemContractToPrivacyNotice(contractsRes.data);
+    const pn = ecosystemContractToPrivacyNotice(contractsRes.data, contractURI);
     const consumerServiceOfferings = contract.serviceOfferings.filter(
       (so: any) => so.participant === dataConsumerURI
     );
