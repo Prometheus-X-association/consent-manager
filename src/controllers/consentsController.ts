@@ -663,9 +663,7 @@ export const giveConsent = async (
 
       if (parentConsent) {
         await parentConsent.updateOne({
-          $push: {
-            children: newConsent._id,
-          },
+          child: newConsent._id,
         });
       }
 
