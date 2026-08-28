@@ -399,8 +399,7 @@ export const giveConsent = async (
     const providerUserIdentifier = await UserIdentifier.findById(
       req.userIdentifier?.id
     ).lean();
-    const { privacyNoticeId, email, event } = req.body;
-
+    const { privacyNoticeId, email, event = "given" } = req.body;
     let { data } = req.body;
     if (data && data.length === 0) {
       throw new BadRequestError("Data are empty", [
