@@ -2126,6 +2126,9 @@ export const redirectPDI = async (
   try {
     if (process.env.PDI_ENDPOINT) {
       const { privacyNoticeId, userIdentifier } = req.query;
+      if (!userIdentifier) {
+        return res.status(400).json({ message: "Missing userIdentifier" });
+      }
       let consent = null;
 
       if (userIdentifier && privacyNoticeId) {
