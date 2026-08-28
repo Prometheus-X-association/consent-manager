@@ -54,9 +54,11 @@ export const getUserConsents = async (
     const {
       limit = "10",
       page = "1",
-      receipt = false,
-      all = false,
+      receipt: receiptQuery,
+      all: allQuery,
     } = req.query;
+    const receipt = receiptQuery === "true";
+    const all = allQuery === "true";
 
     const skip = (parseInt(page.toString()) - 1) * parseInt(limit.toString());
 
