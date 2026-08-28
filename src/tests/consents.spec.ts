@@ -272,14 +272,14 @@ describe("Consent Routes Tests", function () {
     ).to.equal("consent revoked");
   });
 
-  // generate pdi-iframe
-  it("generate pdi-iframe", async () => {
+  // generate pdi-iframe : userIdentifier est desormais obligatoire
+  it("should not generate pdi-iframe without userIdentifier", async () => {
     setupnockMocks(providerBase64);
-    //TODO //nock PDI_ENDPOINT
     const response = await supertest(serverInstance.app)
       .get(`/v1/consents/pdi/iframe`)
       .set("Authorization", providerJWT)
-      .expect(302);
+      .expect(400);
+    expect(response.body).to.have.property("message", "Missing userIdentifier");
   });
 
   // generate pdi-iframe by privacy notice Id
