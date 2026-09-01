@@ -39,8 +39,8 @@ export const DEFAULT_EXTERNAL_OIDC_DISCOVERY_TTL_SECONDS = 3600;
 /**
  * Default path appended to a trusted issuer URL to locate its OpenID Connect
  * discovery document. The spec-mandated well-known location; overridable via
- * {@link EXTERNAL_IDP_ENV_VARS.DISCOVERY_PATH} for issuers (e.g. FIWARE
- * VCVerifier) that serve the document under a per-service path instead.
+ * {@link EXTERNAL_IDP_ENV_VARS.DISCOVERY_PATH} for issuers that serve the 
+ * document under a per-service path instead.
  * @see https://openid.net/specs/openid-connect-discovery-1_0.html
  */
 export const DEFAULT_EXTERNAL_OIDC_DISCOVERY_PATH =
@@ -71,12 +71,8 @@ export interface ExternalIdpConfig {
    * Expected `aud` claim. Required (non-empty) whenever `enabled` is true.
    *
    * A single value is enough even though both data subjects and participants
-   * authenticate here: they present different credentials, but to the same
-   * relying party. On the verifier that is one service with one credential
-   * policy per scope, so every token it issues for this consent-manager carries
-   * the same `aud` - the service id. Which *role* a token may act in follows
-   * from the local record its subject resolves to (see
-   * `mapExternalSubjectToLocal`), not from `aud`.
+   * authenticate here: both send their tokens to the consent-manager as their
+   * target audience.
    */
   readonly audience: string;
   /**
