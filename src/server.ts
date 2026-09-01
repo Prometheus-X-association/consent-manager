@@ -10,12 +10,19 @@ import contractsSimulatedRouter from "./simulated/contract/router";
 import { initSession } from "./middleware/session";
 import { Agent, ConsentAgent } from "contract-agent";
 import { morganLogs } from "./libs/loggers";
+import { getExternalIdpConfig } from "./config/externalIdp";
 
 export const startServer = async (
   testPort?: number,
   agentConfigPath?: string
 ) => {
   if (!testPort) loadMongoose();
+
+  // Parse and validate the external IDP configuration before accepting any
+  // traffic. The config is otherwise read lazily on the first authenticated
+  // request, where a throw would surface as an unhandled rejection rather than
+  // a startup failure.
+  getExternalIdpConfig();
 
   const app = express();
   const port = testPort || process.env.PORT || 3000;

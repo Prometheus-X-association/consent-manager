@@ -18,3 +18,5 @@ consent-manager.iml
 qodana.yaml
 logs
 mochawesome-report/
+# Locally-packed contract-agent tarball (generated; see npm run vendor:contract-agent)
+vendor/

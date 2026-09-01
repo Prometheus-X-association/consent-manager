@@ -3,6 +3,11 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import Participant from "../models/Participant/Participant.model";
 import UserIdentifier from "../models/UserIdentifier/UserIdentifier.model";
 import User from "../models/User/User.model";
+import { resolveTokenRoute } from "../libs/jwt/externalIdentity";
+import {
+  authenticateExternalToken,
+  sendExternalAuthError,
+} from "./externalAuth";
 
 type DecodedServiceJWT = {
   serviceKey: string;
@@ -40,6 +45,28 @@ export const verifyParticipantJWT = async (
     return res.status(401).json({
       message: "'" + token + "' is not a valid authorization token",
     });
+  }
+
+  try {
+    if (resolveTokenRoute(token) === "external") {
+      const { claims, identity } = await authenticateExternalToken(token);
+      if (!identity.participant) {
+        return res
+          .status(401)
+          .json({ success: false, message: "Unauthorized resource" });
+      }
+      req.decodedToken = claims;
+      req.userParticipant = { id: identity.participant.id };
+      // Deliberately not written to the session: an external token has to be
+      // re-verified on every request, otherwise the issuer's expiry and
+      // revocation stop applying for the lifetime of the session cookie.
+      return next();
+    }
+  } catch (error) {
+    return sendExternalAuthError(error, res, next, (message) => ({
+      success: false,
+      message,
+    }));
   }
 
   const buff = Buffer.from(data[1], "base64");
@@ -188,6 +215,22 @@ export const verifyUserJWT = async (
     }
 
     const token = authHeader.slice(7);
+
+    try {
+      if (resolveTokenRoute(token) === "external") {
+        const { claims, identity } = await authenticateExternalToken(token);
+        if (!identity.user) {
+          return res.status(401).json({ message: "Invalid or expired token" });
+        }
+        req.decodedToken = claims;
+        req.user = { id: identity.user.id };
+        return next();
+      }
+    } catch (error) {
+      return sendExternalAuthError(error, res, next, (message) => ({
+        message,
+      }));
+    }
 
     try {
       const decodedToken = jwt.verify(
