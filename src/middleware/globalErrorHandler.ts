@@ -1,6 +1,7 @@
 import { Request, Response, NextFunction } from "express";
 import { BadRequestError } from "../errors/BadRequestError";
 import { IdpUnavailableError } from "../errors/IdpUnavailableError";
+import { NotFoundError } from "../errors/NotFoundError";
 import { UnauthorizedError } from "../errors/UnauthorizedError";
 import { Logger } from "../libs/loggers";
 
@@ -8,6 +9,7 @@ export const globalErrorHandler = (
   err: Error,
   req: Request,
   res: Response,
+  // eslint-disable-next-line @typescript-eslint/no-unused-vars
   next: NextFunction
 ) => {
   Logger.error({
@@ -16,6 +18,8 @@ export const globalErrorHandler = (
   });
   if (err instanceof BadRequestError) {
     return res.status(400).json(err.jsonResponse());
+  } else if (err instanceof NotFoundError) {
+    return res.status(404).json({ error: err.message || "resource not found" });
   } else if (err instanceof UnauthorizedError) {
     return res.status(401).json(err.jsonResponse());
   } else if (err instanceof IdpUnavailableError) {
@@ -30,6 +34,4 @@ export const globalErrorHandler = (
           : undefined,
     });
   }
-
-  next(err);
 };

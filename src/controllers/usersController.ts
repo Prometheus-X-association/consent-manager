@@ -12,7 +12,6 @@ import { USER_SELECTION } from "../utils/schemaSelection";
 import { checkUserIdentifier } from "../utils/UserIdentifierMatchingProcessor";
 import Participant from "../models/Participant/Participant.model";
 import mongoose from "mongoose";
-import { string } from "joi";
 
 /**
  * Registers a new user in the PDI
@@ -387,5 +386,9 @@ export const injectUserIdentifier = async (req: Request, res: Response) => {
 
   const savedUser = await user.save();
 
-  return res.status(200).json(savedUser);
+  const sanitizedUser = await User.findById(savedUser._id)
+    .select("-password -oauth")
+    .lean();
+
+  return res.status(200).json(sanitizedUser);
 };

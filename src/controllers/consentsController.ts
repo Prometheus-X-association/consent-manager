@@ -54,9 +54,11 @@ export const getUserConsents = async (
     const {
       limit = "10",
       page = "1",
-      receipt = false,
-      all = false,
+      receipt: receiptQuery,
+      all: allQuery,
     } = req.query;
+    const receipt = receiptQuery === "true";
+    const all = allQuery === "true";
 
     const skip = (parseInt(page.toString()) - 1) * parseInt(limit.toString());
 
@@ -118,7 +120,13 @@ export const getPrivacyNotices = async (
   next: NextFunction
 ) => {
   try {
-    let { providerId, consumerId } = req.params;
+    let { userId, providerId, consumerId } = req.params;
+
+    // Validate userId param
+    const userIdentifierCheck = await UserIdentifier.findById(userId);
+    if (!userIdentifierCheck)
+      return res.status(404).json({ error: "User identifier not found" });
+
     const privacyNotices = await getPrivacyNoticesFromContractsBetweenParties(
       providerId,
       consumerId
@@ -141,7 +149,10 @@ export const getPrivacyNotices = async (
       .map((element: { contract: any }) => element.contract)
       .sort();
 
-    if (!privacyNotices && !existingPrivacyNotices)
+    if (
+      (!privacyNotices || privacyNotices.length === 0) &&
+      (!existingPrivacyNotices || existingPrivacyNotices.length === 0)
+    )
       return res.status(404).json({ error: "No contracts found" });
 
     const filteredPrivacyNoticesComingFromContracts: IPrivacyNotice[] = [];
@@ -155,12 +166,7 @@ export const getPrivacyNotices = async (
         ...privacyNotices.filter((element) =>
           filteredIds.includes(element.contract)
         )
-      ); // These are new and should be saved after the filtering
-
-      // Find the privacy notices from the existing ones that are similar to the ones
-      // coming from the contracts
-      // If a similar one is found it should be used alongside the other existing
-      // privacy notices in the final returned result.
+      );
 
       for (const pn of filteredPrivacyNoticesComingFromContracts) {
         if (pn.data.length > 0 && pn.purposes.length > 0) {
@@ -170,7 +176,6 @@ export const getPrivacyNotices = async (
       }
     }
 
-    // verify for existing privacy notice if the data have changed, if yes the existing pn is archived and a nex one is created
     for (const pn of privacyNotices) {
       const existingPrivacyNotice = existingPrivacyNotices.find(
         (epn: any) => epn.contract === pn.contract
@@ -191,7 +196,10 @@ export const getPrivacyNotices = async (
       dataProvider: providerId,
       recipients: { $in: consumerId },
       archivedAt: null,
-    }).lean(); // This is what will be sent back
+    }).lean();
+
+    if (!finalPrivacyNotices || finalPrivacyNotices.length === 0)
+      return res.status(404).json({ error: "No contracts found" });
 
     return res.json(finalPrivacyNotices);
   } catch (err) {
@@ -391,10 +399,9 @@ export const giveConsent = async (
     const providerUserIdentifier = await UserIdentifier.findById(
       req.userIdentifier?.id
     ).lean();
-    const { privacyNoticeId, email, event } = req.body;
-
+    const { privacyNoticeId, email, event = "given" } = req.body;
     let { data } = req.body;
-    if (data.length === 0) {
+    if (data && data.length === 0) {
       throw new BadRequestError("Data are empty", [
         { field: "data", message: "can't be empty" },
       ]);
@@ -618,9 +625,9 @@ export const giveConsent = async (
           recipients: privacyNotice.recipients,
           purposes: [...privacyNotice.purposes],
           data: data?.length > 0 ? data : [...privacyNotice.data],
-          status: "granted",
+          status: "refused",
           parent: parentConsentId,
-          consented: true,
+          consented: false,
           contract: privacyNotice.contract,
           event: [consentEvent.refused],
           recipientThirdParties:
@@ -663,9 +670,7 @@ export const giveConsent = async (
 
       if (parentConsent) {
         await parentConsent.updateOne({
-          $push: {
-            children: newConsent._id,
-          },
+          child: newConsent._id,
         });
       }
 
@@ -704,7 +709,7 @@ export const giveConsentUser = async (
     const { privacyNoticeId, email, event } = req.body;
     let { data } = req.body;
 
-    if (data.length === 0) {
+    if (data && data.length === 0) {
       throw new BadRequestError("Data are empty", [
         { field: "data", message: "can't be empty" },
       ]);
@@ -713,12 +718,9 @@ export const giveConsentUser = async (
     const dataProcessingId: string = req.body.dataProcessingId;
 
     if (!privacyNoticeId)
-      throw new BadRequestError("Missing privacyNoticeId", [
-        { field: "privacyNoticeId", message: "Mandatory field" },
-      ]);
+      return res.status(400).json({ error: "Missing privacyNoticeId" });
 
     const privacyNotice = await PrivacyNotice.findById(privacyNoticeId);
-
     if (!privacyNotice)
       return res.status(404).json({ error: "privacy notice not found" });
 
@@ -940,7 +942,6 @@ export const giveConsentUser = async (
       privacyNotice: privacyNotice._id,
       status: { $in: ["revoked", "terminated"] },
       data: data?.length > 0 ? data : [...privacyNotice.data],
-      child: null,
       user: userId,
     });
     let parentConsentId = null;
@@ -960,16 +961,16 @@ export const giveConsentUser = async (
         dataConsumer: dataConsumer?._id,
         recipients: privacyNotice.recipients,
         purposes: [...privacyNotice.purposes],
-        parent: parentConsentId,
         data: data?.length > 0 ? data : [...privacyNotice.data],
         status: "granted",
+        parent: parentConsentId,
         consented: true,
         contract: privacyNotice.contract,
         event: [consentEvent.refused],
         recipientThirdParties:
           dataProcessingId && privacyNotice?.dataProcessings.length > 0
             ? privacyNotice?.dataProcessings.find(
-                (element) => element.catalogId.toString() === dataProcessingId
+                (element) => element.catalogId === dataProcessingId
               )
             : [],
       });
@@ -983,16 +984,16 @@ export const giveConsentUser = async (
         dataConsumer: dataConsumer?._id,
         recipients: privacyNotice.recipients,
         purposes: [...privacyNotice.purposes],
-        parent: parentConsentId,
         data: data?.length > 0 ? data : [...privacyNotice.data],
         status: "granted",
+        parent: parentConsentId,
         consented: true,
         contract: privacyNotice.contract,
         event: [consentEvent.given],
         recipientThirdParties:
           dataProcessingId && privacyNotice?.dataProcessings.length > 0
             ? privacyNotice?.dataProcessings.find(
-                (element) => element.catalogId.toString() === dataProcessingId
+                (element) => element.catalogId === dataProcessingId
               )
             : [],
       });
@@ -1006,7 +1007,9 @@ export const giveConsentUser = async (
 
     if (parentConsent) {
       await parentConsent.updateOne({
-        child: newConsent._id,
+        $push: {
+          children: newConsent._id,
+        },
       });
     }
 
@@ -1248,9 +1251,6 @@ export const giveConsentOnEmailValidation = async (
   }
 };
 
-/**
- * Revoke consent
- */
 export const revokeConsent = async (
   req: Request,
   res: Response,
@@ -1543,8 +1543,8 @@ export const getAvailableExchanges = async (
       throw new Error("Participant not found");
     }
 
-    if (!as) {
-      throw new Error("Missing parameters");
+    if (!as || !["provider", "consumer"].includes(as)) {
+      return res.status(400).json({ error: "Missing parameters" });
     }
 
     const exchanges = await getAvailableExchangesForParticipant(
@@ -2140,9 +2140,12 @@ export const redirectPDI = async (
   try {
     if (process.env.PDI_ENDPOINT) {
       const { privacyNoticeId, userIdentifier } = req.query;
+      if (!userIdentifier) {
+        return res.status(400).json({ message: "Missing userIdentifier" });
+      }
       let consent = null;
 
-      if (privacyNoticeId) {
+      if (userIdentifier && privacyNoticeId) {
         consent = await Consent.findOne({
           $and: [
             {
@@ -2176,29 +2179,27 @@ export const redirectPDI = async (
         });
       }
 
+      const participantId = req.session?.userParticipant?.id ?? "";
+
       if (consent) {
-        res.redirect(
+        return res.redirect(
           `${process.env.PDI_ENDPOINT}?userIdentifier=${
-            req.query.userIdentifier
-          }&participant=${req.session?.userParticipant.id}${
-            req.query.privacyNoticeId
-              ? `&privacyNoticeId=${req.query.privacyNoticeId}`
-              : ""
+            userIdentifier ?? ""
+          }&participant=${participantId}${
+            privacyNoticeId ? `&privacyNoticeId=${privacyNoticeId}` : ""
           }&consentId=${consent.id}`
         );
       } else {
-        res.redirect(
+        return res.redirect(
           `${process.env.PDI_ENDPOINT}?userIdentifier=${
-            req.query.userIdentifier
-          }&participant=${req.session?.userParticipant.id}${
-            req.query.privacyNoticeId
-              ? `&privacyNoticeId=${req.query.privacyNoticeId}`
-              : ""
+            userIdentifier ?? ""
+          }&participant=${participantId}${
+            privacyNoticeId ? `&privacyNoticeId=${privacyNoticeId}` : ""
           }`
         );
       }
     } else {
-      res.status(400).json({
+      return res.status(400).json({
         message: "No PDI endpoint setup.",
       });
     }
