@@ -72,6 +72,24 @@ export const registerParticipant = async (
     if (exists)
       return res.status(409).json({ error: "Participant already exists" });
 
+    // `did` is how a participant authenticating with an externally issued (OID4VP)
+    // token is resolved: the verified token subject is looked up with
+    // `Participant.findOne({ did })` (libs/jwt/externalIdentity.ts). Two participants
+    // sharing a DID would make that resolution arbitrary - one participant could be
+    // authenticated as another - so reject a DID that is already taken. Only non-empty
+    // DIDs are checked: `""` is the field's default and is legitimately shared by
+    // participants onboarded without one.
+    if (participantData.did) {
+      const didTaken = await Participant.findOne({
+        did: participantData.did,
+      }).lean();
+
+      if (didTaken)
+        return res
+          .status(409)
+          .json({ error: "A participant with that did already exists" });
+    }
+
     const newParticipant = new Participant(participantData);
 
     // TODO

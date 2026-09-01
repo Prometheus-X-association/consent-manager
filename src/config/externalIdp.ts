@@ -11,6 +11,7 @@ export const EXTERNAL_IDP_ENV_VARS = {
   ALGS: "EXTERNAL_OIDC_ALGS",
   SUBJECT_CLAIM: "EXTERNAL_OIDC_SUBJECT_CLAIM",
   DISCOVERY_TTL: "EXTERNAL_OIDC_DISCOVERY_TTL",
+  DISCOVERY_PATH: "EXTERNAL_OIDC_DISCOVERY_PATH",
 } as const;
 
 /**
@@ -36,6 +37,16 @@ export const DEFAULT_EXTERNAL_OIDC_SUBJECT_CLAIM = "sub";
 export const DEFAULT_EXTERNAL_OIDC_DISCOVERY_TTL_SECONDS = 3600;
 
 /**
+ * Default path appended to a trusted issuer URL to locate its OpenID Connect
+ * discovery document. The spec-mandated well-known location; overridable via
+ * {@link EXTERNAL_IDP_ENV_VARS.DISCOVERY_PATH} for issuers (e.g. FIWARE
+ * VCVerifier) that serve the document under a per-service path instead.
+ * @see https://openid.net/specs/openid-connect-discovery-1_0.html
+ */
+export const DEFAULT_EXTERNAL_OIDC_DISCOVERY_PATH =
+  "/.well-known/openid-configuration";
+
+/**
  * Separator used in the comma-separated `EXTERNAL_OIDC_ISSUERS` /
  * `EXTERNAL_OIDC_ALGS` env vars.
  */
@@ -58,6 +69,14 @@ export interface ExternalIdpConfig {
   readonly issuers: ReadonlySet<string>;
   /**
    * Expected `aud` claim. Required (non-empty) whenever `enabled` is true.
+   *
+   * A single value is enough even though both data subjects and participants
+   * authenticate here: they present different credentials, but to the same
+   * relying party. On the verifier that is one service with one credential
+   * policy per scope, so every token it issues for this consent-manager carries
+   * the same `aud` - the service id. Which *role* a token may act in follows
+   * from the local record its subject resolves to (see
+   * `mapExternalSubjectToLocal`), not from `aud`.
    */
   readonly audience: string;
   /**
@@ -73,7 +92,27 @@ export interface ExternalIdpConfig {
    * Discovery + JWKS cache TTL in seconds.
    */
   readonly discoveryTtlSeconds: number;
+  /**
+   * Path appended to each trusted issuer URL to fetch its OpenID Connect
+   * discovery document. Defaults to the well-known location; override for
+   * issuers that expose discovery under a per-service path.
+   */
+  readonly discoveryPath: string;
 }
+
+/**
+ * Normalizes a configured discovery path so it is always a non-empty,
+ * leading-slash path that can be appended to an issuer URL. Falls back to the
+ * spec default when the raw value is blank.
+ *
+ * @param raw - Raw env var value (may be undefined).
+ * @returns The normalized discovery path (always starts with `/`).
+ */
+const normalizeDiscoveryPath = (raw: string | undefined): string => {
+  const trimmed = (raw ?? "").trim();
+  if (trimmed.length === 0) return DEFAULT_EXTERNAL_OIDC_DISCOVERY_PATH;
+  return trimmed.startsWith("/") ? trimmed : `/${trimmed}`;
+};
 
 /**
  * Reads a comma-separated env var into a trimmed, de-duplicated list, dropping
@@ -133,6 +172,9 @@ const parseExternalIdpConfig = (): ExternalIdpConfig => {
     Number.isFinite(parsedTtl) && parsedTtl > 0
       ? parsedTtl
       : DEFAULT_EXTERNAL_OIDC_DISCOVERY_TTL_SECONDS;
+  const discoveryPath = normalizeDiscoveryPath(
+    process.env[EXTERNAL_IDP_ENV_VARS.DISCOVERY_PATH]
+  );
 
   return {
     enabled,
@@ -145,6 +187,7 @@ const parseExternalIdpConfig = (): ExternalIdpConfig => {
         ? subjectClaim
         : DEFAULT_EXTERNAL_OIDC_SUBJECT_CLAIM,
     discoveryTtlSeconds,
+    discoveryPath,
   };
 };
 

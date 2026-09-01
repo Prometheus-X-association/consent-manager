@@ -7,15 +7,11 @@ import {
   JWTPayload,
   JWTVerifyGetKey,
 } from "jose";
+import { HttpProxyAgent } from "http-proxy-agent";
+import { HttpsProxyAgent } from "https-proxy-agent";
 import { getExternalIdpConfig } from "../../config/externalIdp";
 import { UnauthorizedError } from "../../errors/UnauthorizedError";
 import { Logger } from "../loggers";
-
-/**
- * Standard OpenID Connect discovery path appended to an issuer URL.
- * @see https://openid.net/specs/openid-connect-discovery-1_0.html
- */
-const OPENID_CONFIGURATION_PATH = "/.well-known/openid-configuration";
 
 /** Prefix for the axios cache id used to store discovery documents. */
 const DISCOVERY_CACHE_ID_PREFIX = "external-oidc-discovery:";
@@ -68,6 +64,8 @@ const stripTrailingSlash = (issuer: string): string =>
  * returns its `jwks_uri`.
  *
  * @param issuer - Trusted issuer URL.
+ * @param discoveryPath - Path appended to the issuer to locate its discovery
+ *   document (well-known by default; per-service for some issuers).
  * @param ttlSeconds - Discovery cache lifetime in seconds.
  * @returns The issuer's JWKS URI.
  * @throws {UnauthorizedError} When the document cannot be fetched or lacks a
@@ -75,11 +73,10 @@ const stripTrailingSlash = (issuer: string): string =>
  */
 const fetchJwksUri = async (
   issuer: string,
+  discoveryPath: string,
   ttlSeconds: number
 ): Promise<string> => {
-  const discoveryUrl = `${stripTrailingSlash(
-    issuer
-  )}${OPENID_CONFIGURATION_PATH}`;
+  const discoveryUrl = `${stripTrailingSlash(issuer)}${discoveryPath}`;
 
   try {
     const response = await discoveryHttpClient.get<OpenIdConfiguration>(
@@ -111,24 +108,78 @@ const fetchJwksUri = async (
 };
 
 /**
+ * Whether a host is excluded from proxying by the `NO_PROXY` environment
+ * variable. Supports `*` (bypass everything) and `.suffix` / `suffix` entries
+ * matched against the host and its dotted suffixes.
+ *
+ * @param host - The target host.
+ * @returns `true` when the host must be reached directly (no proxy).
+ */
+const isNoProxyHost = (host: string): boolean => {
+  const noProxy = (process.env.NO_PROXY ?? process.env.no_proxy ?? "")
+    .split(",")
+    .map((entry) => entry.trim())
+    .filter((entry) => entry.length > 0);
+  return noProxy.some((entry) => {
+    if (entry === "*") return true;
+    const suffix = entry.startsWith(".") ? entry.slice(1) : entry;
+    return host === suffix || host.endsWith(`.${suffix}`);
+  });
+};
+
+/**
+ * Builds an http(s) proxy agent for a URL from the standard proxy environment
+ * (`HTTPS_PROXY`/`HTTP_PROXY`), honouring `NO_PROXY`. Returns `undefined` when
+ * no proxy applies, so the request goes out directly.
+ *
+ * `jose` v4 fetches the JWKS over `node:https`, so a proxy agent is the way to
+ * reach a verifier whose JWKS endpoint is only reachable through a forward
+ * proxy (e.g. an in-cluster deployment reaching an external ingress host).
+ *
+ * @param url - The JWKS endpoint URL.
+ * @returns A proxy agent, or `undefined` for a direct connection.
+ */
+const proxyAgentForUrl = (
+  url: URL
+): HttpsProxyAgent<string> | HttpProxyAgent<string> | undefined => {
+  const isHttps = url.protocol === "https:";
+  const proxy = isHttps
+    ? process.env.HTTPS_PROXY ??
+      process.env.https_proxy ??
+      process.env.HTTP_PROXY ??
+      process.env.http_proxy
+    : process.env.HTTP_PROXY ?? process.env.http_proxy;
+
+  if (!proxy || isNoProxyHost(url.hostname)) {
+    return undefined;
+  }
+  return isHttps ? new HttpsProxyAgent(proxy) : new HttpProxyAgent(proxy);
+};
+
+/**
  * Returns a cached remote JWKS resolver for an issuer, discovering the
  * `jwks_uri` and (re)building the resolver as needed.
  *
  * @param issuer - Trusted issuer URL.
+ * @param discoveryPath - Path appended to the issuer to locate its discovery
+ *   document.
  * @param ttlSeconds - Discovery cache lifetime in seconds.
  * @returns A `jose` key resolver bound to the issuer's JWKS endpoint.
  */
 const getJwksForIssuer = async (
   issuer: string,
+  discoveryPath: string,
   ttlSeconds: number
 ): Promise<JWTVerifyGetKey> => {
-  const jwksUri = await fetchJwksUri(issuer, ttlSeconds);
+  const jwksUri = await fetchJwksUri(issuer, discoveryPath, ttlSeconds);
   const cached = jwksByIssuer.get(issuer);
   if (cached && cached.jwksUri === jwksUri) {
     return cached.getKey;
   }
 
-  const getKey = createRemoteJWKSet(new URL(jwksUri));
+  const jwksUrl = new URL(jwksUri);
+  const agent = proxyAgentForUrl(jwksUrl);
+  const getKey = createRemoteJWKSet(jwksUrl, agent ? { agent } : undefined);
   jwksByIssuer.set(issuer, { jwksUri, getKey });
   return getKey;
 };
@@ -178,7 +229,11 @@ export const verifyExternalToken = async (
   }
 
   try {
-    const getKey = await getJwksForIssuer(issuer, config.discoveryTtlSeconds);
+    const getKey = await getJwksForIssuer(
+      issuer,
+      config.discoveryPath,
+      config.discoveryTtlSeconds
+    );
     const { payload } = await jwtVerify(token, getKey, {
       issuer,
       audience: config.audience,

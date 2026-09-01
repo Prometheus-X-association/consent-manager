@@ -559,7 +559,14 @@ export const giveConsent = async (
 
       const verification = await Consent.findOne({
         providerUserIdentifier: providerUserIdentifier._id,
-        consumerUserIdentifier: consumerUserIdentifier._id,
+        // The consumer-side UserIdentifier is OPTIONAL (see Consent.model.ts, where only
+        // `providerUserIdentifier` is required): a data subject may be registered solely at
+        // the data PROVIDER - the party that actually holds its data - and never at the
+        // consumer. Guard the dereference so that subject can still consent, instead of
+        // failing the request with a 500 (`Cannot read properties of null (reading '_id')`).
+        ...(consumerUserIdentifier
+          ? { consumerUserIdentifier: consumerUserIdentifier._id }
+          : {}),
         dataProvider: dataProvider._id,
         privacyNotice: privacyNoticeId,
         data: data?.length > 0 ? data : [...privacyNotice.data],
@@ -901,7 +908,14 @@ export const giveConsentUser = async (
 
     const verification = await Consent.findOne({
       providerUserIdentifier: providerUserIdentifier._id,
-      consumerUserIdentifier: consumerUserIdentifier._id,
+      // The consumer-side UserIdentifier is OPTIONAL (see Consent.model.ts, where only
+      // `providerUserIdentifier` is required): a data subject may be registered solely at
+      // the data PROVIDER - the party that actually holds its data - and never at the
+      // consumer. Guard the dereference so that subject can still consent, instead of
+      // failing the request with a 500 (`Cannot read properties of null (reading '_id')`).
+      ...(consumerUserIdentifier
+        ? { consumerUserIdentifier: consumerUserIdentifier._id }
+        : {}),
       dataProvider: dataProvider._id,
       privacyNotice: privacyNoticeId,
       data: data?.length > 0 ? data : [...privacyNotice.data],

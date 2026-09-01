@@ -228,6 +228,57 @@ describe("External IDP token verifier", () => {
     }
     expect(error).to.be.instanceOf(UnauthorizedError);
   });
+
+  describe("configurable discovery path (parameterized)", () => {
+    // A FIWARE VCVerifier serves discovery under a per-service path rather than
+    // the spec well-known location.
+    const SERVICE_DISCOVERY_PATH =
+      "/services/consent-manager/.well-known/openid-configuration";
+
+    const pathCases = [
+      {
+        name: "leading-slash path",
+        configured: SERVICE_DISCOVERY_PATH,
+        fetched: SERVICE_DISCOVERY_PATH,
+      },
+      {
+        name: "slashless path (normalized to a leading slash)",
+        configured: SERVICE_DISCOVERY_PATH.slice(1),
+        fetched: SERVICE_DISCOVERY_PATH,
+      },
+    ];
+
+    afterEach(() => {
+      delete process.env.EXTERNAL_OIDC_DISCOVERY_PATH;
+      resetExternalIdpConfig();
+    });
+
+    pathCases.forEach(({ name, configured, fetched }) => {
+      it(`discovers via the configured ${name}, not the well-known default`, async () => {
+        process.env.EXTERNAL_OIDC_DISCOVERY_PATH = configured;
+        resetExternalIdpConfig();
+        resetExternalVerifierCaches();
+
+        // Serve ONLY the custom path; the well-known default is intentionally
+        // left unmocked so a regression that ignores the override fails to
+        // discover (nock rejects the unexpected request).
+        nock(TRUSTED_ISSUER)
+          .persist()
+          .get(fetched)
+          .reply(200, { jwks_uri: `${TRUSTED_ISSUER}${JWKS_PATH}` });
+        nock(TRUSTED_ISSUER)
+          .persist()
+          .get(JWKS_PATH)
+          .reply(200, { keys: [rsaKey.publicJwk] });
+
+        const token = await signToken(rsaKey);
+        const payload = await verifyExternalToken(token);
+
+        expect(payload.sub).to.equal(EXTERNAL_SUBJECT);
+        expect(payload.iss).to.equal(TRUSTED_ISSUER);
+      });
+    });
+  });
 });
 
 describe("Token routing", () => {
