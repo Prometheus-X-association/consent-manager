@@ -3,25 +3,11 @@ import jwt, { JwtPayload } from "jsonwebtoken";
 import Participant from "../models/Participant/Participant.model";
 import UserIdentifier from "../models/UserIdentifier/UserIdentifier.model";
 import User from "../models/User/User.model";
+import { resolveTokenRoute } from "../libs/jwt/externalIdentity";
 import {
-  resolveTokenRoute,
-  mapExternalSubjectToLocal,
-} from "../libs/jwt/externalIdentity";
-import { verifyExternalToken } from "../libs/jwt/externalVerifier";
-import { UnauthorizedError } from "../errors/UnauthorizedError";
-
-/**
- * Builds the 401 response message for a failed external-token attempt, exposing
- * the specific reason for {@link UnauthorizedError} while masking unexpected
- * failures behind the generic message used by the local path.
- *
- * @param error - The caught error.
- * @returns A human-readable message safe to return to the client.
- */
-const externalAuthErrorMessage = (error: unknown): string =>
-  error instanceof UnauthorizedError
-    ? error.message
-    : "Invalid or expired token";
+  authenticateExternalToken,
+  sendExternalAuthError,
+} from "./externalAuth";
 
 type DecodedServiceJWT = {
   serviceKey: string;
@@ -61,22 +47,26 @@ export const verifyParticipantJWT = async (
     });
   }
 
-  if (resolveTokenRoute(token) === "external") {
-    try {
-      const claims = await verifyExternalToken(token);
-      const identity = await mapExternalSubjectToLocal(claims);
+  try {
+    if (resolveTokenRoute(token) === "external") {
+      const { claims, identity } = await authenticateExternalToken(token);
       if (!identity.participant) {
         return res
           .status(401)
           .json({ success: false, message: "Unauthorized resource" });
       }
-      req.decodedToken = claims as unknown as JwtPayload;
+      req.decodedToken = claims;
       req.userParticipant = { id: identity.participant.id };
-      req.session.userParticipant = { id: identity.participant.id };
+      // Deliberately not written to the session: an external token has to be
+      // re-verified on every request, otherwise the issuer's expiry and
+      // revocation stop applying for the lifetime of the session cookie.
       return next();
-    } catch (error) {
-      return res.status(401).json({ message: externalAuthErrorMessage(error) });
     }
+  } catch (error) {
+    return sendExternalAuthError(error, res, next, (message) => ({
+      success: false,
+      message,
+    }));
   }
 
   const buff = Buffer.from(data[1], "base64");
@@ -226,23 +216,20 @@ export const verifyUserJWT = async (
 
     const token = authHeader.slice(7);
 
-    if (resolveTokenRoute(token) === "external") {
-      try {
-        const claims = await verifyExternalToken(token);
-        const identity = await mapExternalSubjectToLocal(claims);
+    try {
+      if (resolveTokenRoute(token) === "external") {
+        const { claims, identity } = await authenticateExternalToken(token);
         if (!identity.user) {
-          return res
-            .status(401)
-            .json({ message: "User with subject doesn't exist" });
+          return res.status(401).json({ message: "Invalid or expired token" });
         }
-        req.decodedToken = claims as unknown as JwtPayload;
+        req.decodedToken = claims;
         req.user = { id: identity.user.id };
         return next();
-      } catch (error) {
-        return res
-          .status(401)
-          .json({ message: externalAuthErrorMessage(error) });
       }
+    } catch (error) {
+      return sendExternalAuthError(error, res, next, (message) => ({
+        message,
+      }));
     }
 
     try {

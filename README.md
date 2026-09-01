@@ -372,7 +372,8 @@ are discovered through each issuer's `.well-known/openid-configuration` document
 
 The feature is **off by default** and fully additive: when no trusted issuers
 are configured, every token continues to take the existing local HMAC path
-unchanged.
+unchanged. Nothing about how users are stored or onboarded changes — the
+existing `email` key is reused as-is.
 
 ### How routing works
 
@@ -382,33 +383,89 @@ _select_ a verifier — never to trust a claim:
 
 - No `iss`, a self-issued `iss`, or an `iss` that is not in the trusted set →
   the existing local HMAC verification (unchanged).
-- An `iss` in `EXTERNAL_OIDC_ISSUERS` → the external verifier, which validates
-  the signature and enforces `iss`, `aud`, `exp` and the allowed algorithms via
-  OIDC discovery + remote JWKS (with caching and automatic key rotation).
+- An `iss` in `EXTERNAL_OIDC_ISSUERS` → the external verifier.
 
-After verification, the external subject (a DID / IDP subject taken from
-`EXTERNAL_OIDC_SUBJECT_CLAIM`) is mapped to a local identity:
+A token routed to the external verifier never falls back to the local path: if
+external verification fails, the request is rejected.
 
-- a `UserIdentifier` whose DID `identifier` equals the subject (and its owning
-  `User`), and/or
-- a `Participant` whose `did` equals the subject.
+### What the external verifier checks
+
+Via OIDC discovery and a cached remote JWKS (`jose`), with automatic key
+rotation:
+
+- the signature, against the discovered JWKS for that issuer;
+- `iss` ∈ the configured trusted set, `aud` = `EXTERNAL_OIDC_AUDIENCE`;
+- `exp` and `iat` are **required** to be present, not merely valid when present,
+  so an issuer omitting `exp` cannot produce a token that never expires;
+- the signing algorithm is one of `EXTERNAL_OIDC_ALGS`, which may only contain
+  asymmetric algorithms — a symmetric or `none` entry is rejected at startup;
+- the discovery document's own `issuer` matches the issuer it was fetched for,
+  and both the issuer URL and the advertised `jwks_uri` use `https`.
+
+### Mapping a verified token to a local identity
+
+The value of `EXTERNAL_OIDC_SUBJECT_CLAIM` is matched against:
+
+- `User.email` — the key the consent manager already uses for natural persons.
+  The field is a plain string, so it can equally hold a DID; no schema change is
+  needed to onboard wallet identities.
+- `Participant.did` — for participant-issued tokens.
+
+Two deliberate restrictions:
+
+- The subject is **not** matched against `UserIdentifier`. Those documents are
+  participant-scoped and participant-writable, so matching them would let the
+  party that supplies the value also choose whose account it resolves to.
+  `User.email` is only ever written when a `User` is created; no route updates it.
+- When `EXTERNAL_OIDC_SUBJECT_CLAIM` is `email`, the token must also carry
+  `email_verified: true`. An unverified address is self-asserted by the token
+  holder and cannot carry an account binding.
 
 There is **no just-in-time provisioning**: a valid external token whose subject
 does not resolve to an existing local record is rejected with `401`. Onboarding
-stays with the existing `/users/register` endpoints.
+stays with the existing `/users/register` endpoints. A subject that resolves to
+more than one record is also rejected rather than matched arbitrarily.
+
+External identities are **not cached in the session**, so the issuer's expiry
+and revocation keep applying on every request.
+
+### Response codes
+
+| Situation                                                                         | Status                       |
+| --------------------------------------------------------------------------------- | ---------------------------- |
+| Token invalid, expired, or its subject unknown                                    | `401` with a uniform message |
+| Trusted issuer unreachable, timing out, or serving an unusable discovery document | `503`                        |
+
+The `401` message is identical for every cause, so the response is not an oracle
+for which check failed or whether a subject is enrolled. Specific reasons are
+logged.
 
 ### Configuration
 
-| Env var | Meaning | Default |
-| --- | --- | --- |
-| `EXTERNAL_OIDC_ISSUERS` | Comma-separated list of trusted issuer URLs (must match the token `iss`) | _(empty = feature off)_ |
-| `EXTERNAL_OIDC_AUDIENCE` | Expected `aud` claim | _(required when issuers set)_ |
-| `EXTERNAL_OIDC_ALGS` | Allowed (asymmetric) signing algorithms | `RS256,ES256,EdDSA` |
-| `EXTERNAL_OIDC_SUBJECT_CLAIM` | Claim holding the DID / external subject | `sub` |
-| `EXTERNAL_OIDC_DISCOVERY_TTL` | Discovery + JWKS cache TTL (seconds) | `3600` |
+| Env var                         | Meaning                                                                                | Default                             |
+| ------------------------------- | -------------------------------------------------------------------------------------- | ----------------------------------- |
+| `EXTERNAL_OIDC_ISSUERS`         | Comma-separated list of trusted issuer URLs, `https` only (must match the token `iss`) | _(empty = feature off)_             |
+| `EXTERNAL_OIDC_AUDIENCE`        | Expected `aud` claim                                                                   | _(required when issuers set)_       |
+| `EXTERNAL_OIDC_ALGS`            | Allowed signing algorithms; asymmetric only                                            | `RS256,ES256,EdDSA`                 |
+| `EXTERNAL_OIDC_SUBJECT_CLAIM`   | Claim matched against `User.email` / `Participant.did`                                 | `sub`                               |
+| `EXTERNAL_OIDC_DISCOVERY_TTL`   | Discovery + JWKS cache lifetime (seconds)                                              | `3600`                              |
+| `EXTERNAL_OIDC_DISCOVERY_PATH`  | Path appended to each issuer URL to fetch its discovery document                       | `/.well-known/openid-configuration` |
+| `EXTERNAL_OIDC_HTTP_TIMEOUT`    | Discovery / JWKS request timeout (milliseconds)                                        | `5000`                              |
+| `EXTERNAL_OIDC_CLOCK_TOLERANCE` | Leeway on `exp` / `nbf` (seconds)                                                      | `30`                                |
 
-If `EXTERNAL_OIDC_ISSUERS` is set without `EXTERNAL_OIDC_AUDIENCE`, startup fails
-fast to avoid accepting a trusted issuer's token for any relying party.
+Not every issuer serves discovery at the well-known location — a FIWARE
+VCVerifier, for instance, exposes it under a per-service path — hence
+`EXTERNAL_OIDC_DISCOVERY_PATH`. A value without a leading slash is normalised.
+
+The JWKS fetch goes through `node:https` inside `jose` rather than the axios
+instance, so it honours the standard `HTTPS_PROXY` / `HTTP_PROXY` and `NO_PROXY`
+environment variables directly. This matters for an in-cluster deployment whose
+verifier is only reachable through a forward proxy.
+
+The configuration is parsed and validated during `startServer`, so a bad value
+fails the process at startup rather than on the first authenticated request.
+Setting `EXTERNAL_OIDC_ISSUERS` without `EXTERNAL_OIDC_AUDIENCE` is rejected, as
+is a cleartext issuer URL, a symmetric algorithm, or a non-numeric timeout.
 
 ```.dotenv
 # Example: trust one external IDP
@@ -417,6 +474,9 @@ EXTERNAL_OIDC_AUDIENCE=consent-manager
 EXTERNAL_OIDC_ALGS=RS256,ES256,EdDSA
 EXTERNAL_OIDC_SUBJECT_CLAIM=sub
 EXTERNAL_OIDC_DISCOVERY_TTL=3600
+EXTERNAL_OIDC_DISCOVERY_PATH=/.well-known/openid-configuration
+EXTERNAL_OIDC_HTTP_TIMEOUT=5000
+EXTERNAL_OIDC_CLOCK_TOLERANCE=30
 ```
 
 ### End-to-end example
@@ -428,14 +488,16 @@ EXTERNAL_OIDC_DISCOVERY_TTL=3600
    {
      "iss": "https://idp.example.org",
      "aud": "consent-manager",
-     "sub": "did:example:123456789abcdefghi",
+     "sub": "user@example.org",
+     "iat": 1755596400,
      "exp": 1755600000
    }
    ```
 
-2. The token must correspond to an existing local identity: a `UserIdentifier`
-   whose `identifier` is `did:example:123456789abcdefghi` (linked to a `User`),
-   or a `Participant` whose `did` is that value.
+2. The subject must correspond to an existing local identity: a `User` whose
+   `email` is `user@example.org`, or a `Participant` whose `did` is that value.
+   To key a user on a DID instead, store the DID in that user's `email` field
+   and set `EXTERNAL_OIDC_SUBJECT_CLAIM=sub` with the wallet's DID as `sub`.
 
 3. The client calls a protected endpoint with the token:
 
@@ -445,9 +507,30 @@ EXTERNAL_OIDC_DISCOVERY_TTL=3600
    ```
 
 4. The consent manager discovers
-   `https://idp.example.org/.well-known/openid-configuration`, fetches the
-   `jwks_uri`, verifies the signature and claims, maps the subject to the local
-   user, and processes the request. An unknown subject yields `401`.
+   `https://idp.example.org/.well-known/openid-configuration`, checks that the
+   document describes that issuer, fetches the `jwks_uri`, verifies the signature
+   and claims, maps the subject to the local user, and processes the request. An
+   unknown subject yields `401`; an unreachable issuer yields `503`.
+
+### Known limitations
+
+`Participant.did` is a pre-existing field that was never queried before this
+feature, and nothing populates it with a DID today — the schema declares it
+`required: true, default: ""`, `POST /participants` accepts whatever the caller
+supplies, and existing data holds catalogue URLs or empty strings. So the
+participant branch matches nothing until a convention for that field is agreed.
+
+`registerParticipant` now rejects a `did` that is already taken, but that check
+is application-level: it does not cover rows that already share a value, and two
+concurrent registrations can still both pass it. The field wants a unique index
+before anything relies on it. Until then an ambiguous match is rejected rather
+than resolved arbitrarily.
+
+The subject is matched on its own, not on the `(issuer, subject)` pair. With more
+than one entry in `EXTERNAL_OIDC_ISSUERS`, any trusted issuer can assert a subject
+belonging to another. Until the identity model carries the issuer, configure a
+single trusted issuer, or only issuers that are authoritative for disjoint
+subject namespaces.
 
 ## Contributing
 

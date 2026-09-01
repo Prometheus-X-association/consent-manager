@@ -1,10 +1,10 @@
 import { NextFunction, Request, Response } from "express";
 import jwt from "jsonwebtoken";
+import { resolveTokenRoute } from "../libs/jwt/externalIdentity";
 import {
-  resolveTokenRoute,
-  mapExternalSubjectToLocal,
-} from "../libs/jwt/externalIdentity";
-import { verifyExternalToken } from "../libs/jwt/externalVerifier";
+  authenticateExternalToken,
+  sendExternalAuthError,
+} from "./externalAuth";
 
 /**
  * Validates the OAuth access token on a request. Tokens issued by a trusted
@@ -26,18 +26,19 @@ export const validateAccessToken = async (
 
   const token = accessToken.toString();
 
-  if (resolveTokenRoute(token) === "external") {
-    try {
-      const claims = await verifyExternalToken(token);
-      const identity = await mapExternalSubjectToLocal(claims);
+  try {
+    if (resolveTokenRoute(token) === "external") {
+      const { identity } = await authenticateExternalToken(token);
       if (!identity.user) {
         return res.status(401).json({ error: "Invalid access token" });
       }
       req.user = { id: identity.user.id };
       return next();
-    } catch (error) {
-      return res.status(401).json({ error: "Invalid access token" });
     }
+  } catch (error) {
+    return sendExternalAuthError(error, res, next, (message) => ({
+      error: message,
+    }));
   }
 
   jwt.verify(token, process.env.OAUTH_SECRET_KEY, (err, decoded) => {
