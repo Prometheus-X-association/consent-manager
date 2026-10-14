@@ -8,7 +8,7 @@ const schema = new Schema<IUserIdentifier>(
       ref: "Participant",
       required: true,
     },
-    email: { type: String, required: true },
+    email: { type: String },
     identifier: { type: String },
     url: { type: String },
     user: { type: Schema.Types.ObjectId, ref: "User" },

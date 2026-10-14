@@ -18,7 +18,13 @@ export const setUserIdForParticipant = async (
     isObjectID(userIdentifier);
 
     const user = await User.findOne({ identifiers: userIdentifier });
-    if (!user) throw new NotFoundError("User not found");
+    if (!user) {
+      return res.status(404).json({
+        code: 404,
+        error: "Resource not found",
+        message: `User with userIdentifier ${userIdentifier} not found`,
+      });
+    }
 
     req.user = {
       id: user._id,

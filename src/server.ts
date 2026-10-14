@@ -4,6 +4,7 @@ import { loadRoutes } from "./routes";
 import { loadMongoose } from "./config/database";
 import path from "path";
 import fs from "fs";
+import type { Connection } from "mongoose";
 
 // Simulation
 import contractsSimulatedRouter from "./simulated/contract/router";
@@ -11,11 +12,29 @@ import { initSession } from "./middleware/session";
 import { Agent, ConsentAgent } from "contract-agent";
 import { morganLogs } from "./libs/loggers";
 
+const isReplicaSetEnabled = async (
+  connection?: Connection
+): Promise<boolean> => {
+  if (!connection?.db) {
+    return false;
+  }
+
+  try {
+    const hello = await connection.db.admin().command({ hello: 1 });
+    return Boolean(hello?.setName);
+  } catch {
+    return false;
+  }
+};
+
 export const startServer = async (
   testPort?: number,
   agentConfigPath?: string
 ) => {
-  if (!testPort) loadMongoose();
+  let mongoConnection: Connection | undefined;
+  if (!testPort) {
+    mongoConnection = await loadMongoose();
+  }
 
   const app = express();
   const port = testPort || process.env.PORT || 3000;
@@ -43,7 +62,14 @@ export const startServer = async (
       __filename
     );
     Agent.setProfilesHost("profiles");
-    await ConsentAgent.retrieveService();
+
+    if (await isReplicaSetEnabled(mongoConnection)) {
+      await ConsentAgent.retrieveService();
+    } else {
+      console.warn(
+        "Consent Agent startup skipped: MongoDB change streams require a replica set."
+      );
+    }
   }
 
   loadRoutes(app);

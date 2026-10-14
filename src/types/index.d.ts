@@ -32,6 +32,17 @@ declare module "express" {
       id: string;
     };
 
+    /**
+     * The targeted account with a guardian, set by the guardianship
+     * authorization middlewares once the acting user is confirmed as a
+     * guardian of this account.
+     */
+    child?: {
+      id: string;
+      hasPassword: boolean;
+      populated?: IUser;
+    };
+
     validationSchema?: Joi.ObjectSchema;
   }
 }

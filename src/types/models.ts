@@ -102,28 +102,70 @@ export type FederatedIdentifier = {
 
 export interface IUserIdentifier extends Document, AllSchemas {
   attachedParticipant: Types.ObjectId | null;
-  email: string;
+  email?: string;
   /**
    * Alternative to email for decentralized identifiers
    */
-  identifier: string;
+  identifier?: string;
   /**
    * dynamic url
    */
-  url: string;
+  url?: string;
   user: Types.ObjectId | null;
 }
 
 export interface IUser extends Document, AllSchemas {
   firstName?: string;
   lastName?: string;
-  email: string;
+  email?: string;
   password?: string;
   identifiers: Types.ObjectId[];
   oauth: {
     scopes: string[];
     refreshToken?: string;
   };
+
+  /**
+   * Reference to the guardian User who manages this account.
+   * Set when a dataspace connector registers a child userIdentifier with
+   * legalGuardian, and the parent validates via email.
+   */
+  guardian?: Types.ObjectId | null;
+
+  /**
+   * Hashed, single-use token used by the account completion ("claim") flow.
+   */
+  claimToken?: string;
+
+  /**
+   * Expiry date of the claim token.
+   */
+  claimTokenExpiresAt?: Date;
+}
+
+export interface IPendingGuardianship extends Document {
+  /** Participant who initiated the registration. */
+  participantId: Types.ObjectId;
+  /** First name of the child (optional). */
+  firstName?: string;
+  /** Last name of the child (optional). */
+  lastName?: string;
+  /** Email of the child being registered (optional). */
+  email?: string;
+  /** Optional decentralized identifier. */
+  identifier?: string;
+  /** Optional dynamic URL. */
+  url?: string;
+  /** The guardian User who must validate. */
+  parentId: Types.ObjectId;
+  /** Webhook URL to call on validation. */
+  callbackUrl: string;
+  /** SHA-256 hash of the raw token sent by email. */
+  token: string;
+  /** Token expiry (48h from creation). */
+  expiresAt: Date;
+  createdAt: Date;
+  updatedAt: Date;
 }
 
 export interface IConsent extends Document, AllSchemas {
@@ -704,6 +746,23 @@ export interface IEvent {
    * obtaining consent, or termination due to withdrawal.
    */
   eventState: string;
+
+  /**
+   * Id of the user who actually performed the action when it differs from the
+   * consent's PII principal — e.g. a guardian acting on behalf of a managed
+   * account. Optional and backward compatible.
+   */
+  performedBy?: string;
+
+  /**
+   * Display name of the performer (e.g. the guardian's full name).
+   */
+  performedByName?: string;
+
+  /**
+   * True when the action was performed on behalf of the consent's user.
+   */
+  onBehalf?: boolean;
 }
 
 export interface IPrivacyNoticeDocument

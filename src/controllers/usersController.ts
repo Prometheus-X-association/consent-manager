@@ -1,7 +1,9 @@
 import { NextFunction, Request, Response } from "express";
+import crypto from "crypto";
 import { BadRequestError } from "../errors/BadRequestError";
 import User from "../models/User/User.model";
 import UserIdentifier from "../models/UserIdentifier/UserIdentifier.model";
+import PendingGuardianship from "../models/PendingGuardianship/PendingGuardianship.model";
 import {
   generateAccessToken,
   generateRefreshToken,
@@ -12,6 +14,12 @@ import { USER_SELECTION } from "../utils/schemaSelection";
 import { checkUserIdentifier } from "../utils/UserIdentifierMatchingProcessor";
 import Participant from "../models/Participant/Participant.model";
 import mongoose from "mongoose";
+import { string } from "joi";
+import { sendGuardianValidationRequest } from "../libs/emails/guardianship/notifyChild";
+
+const PENDING_GUARDIANSHIP_TTL_MS = 1000 * 60 * 60 * 48; // 48 hours
+const hashToken = (t: string) =>
+  crypto.createHash("sha256").update(t).digest("hex");
 
 /**
  * Registers a new user in the PDI
@@ -24,8 +32,12 @@ export const signup = async (
   try {
     const { firstName, lastName, email, password } = req.body;
 
+    // Accounts with a completed password cannot sign up again with the same email.
+    // Accounts without a password (guardian-managed, not yet completed) are not
+    // a conflict since they cannot be logged into.
     const verify = await User.findOne({
       email,
+      password: { $exists: true },
     }).lean();
 
     if (verify) {
@@ -104,6 +116,15 @@ export const login = async (
 
     if (!user) {
       return res.status(404).json({ message: "User not found" });
+    }
+
+    // Accounts without a password cannot log in until the account is completed
+    // (password is set via the account completion / claim flow).
+    if (!user.password) {
+      return res.status(403).json({
+        message:
+          "This account is not yet completed. Complete the account to activate it.",
+      });
     }
 
     const isPasswordValid = await user.validatePassword(password);
@@ -204,7 +225,15 @@ export const registerUserIdentifier = async (
   next: NextFunction
 ) => {
   try {
-    const { email, identifier, url } = req.body;
+    const {
+      firstName,
+      lastName,
+      email,
+      identifier,
+      url,
+      legalGuardian,
+      callbackUrl,
+    } = req.body;
     if (!email && !identifier)
       throw new BadRequestError("Missing or invalid fields", [
         { field: "email", message: "Email must exist if identifier does not" },
@@ -214,6 +243,76 @@ export const registerUserIdentifier = async (
         },
       ]);
 
+    // -----------------------------------------------------------------------
+    // Guardianship flow: delegate creation to parent email confirmation
+    // -----------------------------------------------------------------------
+    if (legalGuardian) {
+      if (!callbackUrl) {
+        throw new BadRequestError("Missing or invalid fields", [
+          {
+            field: "callbackUrl",
+            message: "callbackUrl is required when legalGuardian is set",
+          },
+        ]);
+      }
+
+      const isObjectId = mongoose.Types.ObjectId.isValid(legalGuardian);
+      const parent = await User.findOne(
+        isObjectId
+          ? { $or: [{ _id: legalGuardian }, { email: legalGuardian }] }
+          : { email: legalGuardian }
+      ).lean();
+      if (!parent) {
+        throw new BadRequestError("Missing or invalid fields", [
+          { field: "legalGuardian", message: "Parent user not found" },
+        ]);
+      }
+      if (!parent.email) {
+        throw new BadRequestError("Missing or invalid fields", [
+          {
+            field: "legalGuardian",
+            message: "Guardian must have an email to validate guardianship",
+          },
+        ]);
+      }
+
+      const rawToken = crypto.randomBytes(32).toString("hex");
+      await PendingGuardianship.create({
+        participantId: req.userParticipant.id,
+        firstName,
+        lastName,
+        email,
+        identifier,
+        url,
+        parentId: parent._id,
+        callbackUrl,
+        token: hashToken(rawToken),
+        expiresAt: new Date(Date.now() + PENDING_GUARDIANSHIP_TTL_MS),
+      });
+
+      const childName =
+        [firstName, lastName].filter(Boolean).join(" ") ||
+        email ||
+        identifier ||
+        "the account";
+      const validateUrl = `${process.env.PDI_ENDPOINT}/validate-guardianship?token=${rawToken}`;
+      await sendGuardianValidationRequest({
+        parentEmail: parent.email,
+        parentName: `${parent.firstName ?? ""} ${parent.lastName ?? ""}`.trim(),
+        childEmail: childName,
+        childIdentifier: identifier,
+        validateUrl,
+      });
+
+      return res.status(202).json({
+        message: "Validation email sent to guardian",
+        status: "pending",
+      });
+    }
+
+    // -----------------------------------------------------------------------
+    // Standard synchronous flow
+    // -----------------------------------------------------------------------
     const exists = await UserIdentifier.findOne({
       attachedParticipant: req.userParticipant.id,
       email,
