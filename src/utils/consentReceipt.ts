@@ -8,19 +8,72 @@ export const consentToConsentReceipt = async (
   const consumer = await Participant.findById(consent.dataConsumer);
   const provider = await Participant.findById(consent.dataProvider);
 
-  const consumerSelfDescription = await axios.get(consumer.selfDescriptionURL);
-  const providerSelfDescription = await axios.get(provider.selfDescriptionURL);
+  if (!consumer || !provider) {
+    throw new Error("Consent references missing participants");
+  }
+
+  // Fetch self-descriptions with fallback to participant DB data if unavailable
+  let consumerSelfDescription;
+  let providerSelfDescription;
+
+  try {
+    const response = await axios.get(consumer.selfDescriptionURL, {
+      timeout: 2000,
+    });
+    consumerSelfDescription = response;
+  } catch {
+    // Fallback: use participant data from DB if self-description URL is unreachable
+    consumerSelfDescription = {
+      data: {
+        legalName: consumer.legalName || "Unknown",
+        did: consumer.did || "",
+        legalPerson: consumer.legalPerson || {
+          legalAddress: { countryCode: "XX" },
+          subOrganization: [],
+        },
+      },
+    };
+  }
+
+  try {
+    const response = await axios.get(provider.selfDescriptionURL, {
+      timeout: 2000,
+    });
+    providerSelfDescription = response;
+  } catch {
+    // Fallback: use participant data from DB if self-description URL is unreachable
+    providerSelfDescription = {
+      data: {
+        legalName: provider.legalName || "Unknown",
+        did: provider.did || "",
+        legalPerson: provider.legalPerson || {
+          legalAddress: { countryCode: "XX" },
+          subOrganization: [],
+        },
+      },
+    };
+  }
 
   const recipientSelfDescriptions: any[] = [];
 
   if (consent.recipientThirdParties?.catalogId) {
     for (const recipient of consent.recipientThirdParties
       .infrastructureServices) {
-      const response = await axios.get(recipient.participant);
-      recipientSelfDescriptions.push({
-        participant: recipient.participant,
-        data: response.data,
-      });
+      try {
+        const response = await axios.get(recipient.participant, {
+          timeout: 2000,
+        });
+        recipientSelfDescriptions.push({
+          participant: recipient.participant,
+          data: response.data,
+        });
+      } catch {
+        // Skip unreachable recipients
+        recipientSelfDescriptions.push({
+          participant: recipient.participant,
+          data: null,
+        });
+      }
     }
   }
 
@@ -28,7 +81,7 @@ export const consentToConsentReceipt = async (
     record: {
       schemaVersion: consent.schema_version,
       recordId: consent._id,
-      piiPrincipalId: consent.user.toString(),
+      piiPrincipalId: consent.user?.toString() ?? null,
     },
     piiProcessing: {
       privacyNotice: consent.privacyNotice.toString(),

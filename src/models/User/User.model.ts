@@ -8,8 +8,6 @@ const userSchema = new Schema<IUser>(
     lastName: { type: String, default: "" },
     email: {
       type: String,
-      required: true,
-      default: "",
     },
     password: {
       type: String,
@@ -19,6 +17,9 @@ const userSchema = new Schema<IUser>(
       scopes: [{ type: String }],
       refreshToken: { type: String },
     },
+    guardian: { type: Schema.Types.ObjectId, ref: "User", default: null },
+    claimToken: { type: String },
+    claimTokenExpiresAt: { type: Date },
     jsonld: {
       type: String,
       default: "",

@@ -149,19 +149,40 @@ export const verifyUserJWT = async (
     });
 
     if (userExisitingIdentifier) {
+      // A User already links this identifier — authenticate as that User.
       req.user = {
         id: userExisitingIdentifier._id,
       };
       next();
     } else {
+      // Exclude incomplete guardian-managed accounts from the email-based auto-link:
+      // a child account without a password may legitimately share its email with
+      // a guardian (or another user), and silently attaching this identifier to
+      // an incomplete account would entangle distinct accounts.
+      if (!userIdentifier.email) {
+        req.userIdentifier = {
+          id: userIdentifier._id,
+        };
+        return next();
+      }
+
       const userExisitingEmail = await User.findOne({
         email: userIdentifier.email,
+        $or: [
+          { guardian: { $eq: null } }, // Autonomous user
+          { password: { $exists: true } }, // OR completed account
+        ],
       });
 
       if (!userExisitingEmail) {
-        return res
-          .status(401)
-          .json({ message: "User with email doesn't exist" });
+        // No User links this identifier yet (e.g. the user is registered on
+        // only one side of the contract). Don't reject — carry the resolved
+        // userIdentifier so the controller can resolve it and drive
+        // consumer-side registration.
+        req.userIdentifier = {
+          id: userIdentifier._id,
+        };
+        return next();
       }
 
       if (

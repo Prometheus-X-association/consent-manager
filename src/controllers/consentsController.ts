@@ -512,7 +512,31 @@ export const giveConsent = async (
         triggerDataExchange,
       });
 
-      if (emailReattachedResponse.status !== 200) {
+      if (emailReattachedResponse?.case === "no-consumer-identifier") {
+        // Consumer has never registered this user: auto-register them on the
+        // consumer side (consumer DSC -> registrationUri) instead of failing.
+        const registerNewUserToConsumerSideResponse =
+          await registerNewUserToConsumerSide({
+            privacyNotice,
+            req,
+            providerUserIdentifier,
+            dataProvider,
+            dataConsumer,
+            providerUserIdentifierDocument,
+            data,
+            dataProcessingId,
+          });
+
+        if (registerNewUserToConsumerSideResponse.error) {
+          return res
+            .status(registerNewUserToConsumerSideResponse?.status)
+            .json(registerNewUserToConsumerSideResponse?.error);
+        } else {
+          return res
+            .status(registerNewUserToConsumerSideResponse?.status)
+            .json(registerNewUserToConsumerSideResponse?.consent);
+        }
+      } else if (emailReattachedResponse.status !== 200) {
         return res
           .status(emailReattachedResponse?.status)
           .json(emailReattachedResponse?.message);
@@ -681,6 +705,32 @@ export const giveConsent = async (
 };
 
 /**
+ * Optional context allowing a guardian to give a consent on behalf of a
+ * managed user. Additive: when omitted, giveConsentUser behaves exactly as the
+ * regular self-service flow.
+ */
+export type GiveConsentOnBehalf = {
+  /**
+   * When set, the consent targets this user id instead of req.user.id
+   * (a guardian acting on behalf of a managed account).
+   */
+  actingUserId?: string;
+  /**
+   * Extra traceability metadata stamped onto the created consent's event entry.
+   */
+  eventMeta?: {
+    performedBy?: string;
+    performedByName?: string;
+    onBehalf?: boolean;
+  };
+  /**
+   * Called right after a new consent is created and persisted (given/refused),
+   * e.g. to notify the managed account's owner.
+   */
+  onGranted?: (consent: any) => Promise<void> | void;
+};
+
+/**
  * Gives consent on a contractualised data exchange
  * This method is initiated by a call from the User
  * he must be authenticated to perform it
@@ -688,10 +738,11 @@ export const giveConsent = async (
 export const giveConsentUser = async (
   req: Request,
   res: Response,
-  next: NextFunction
+  next: NextFunction,
+  onBehalf?: GiveConsentOnBehalf
 ) => {
   try {
-    const userId = req.user?.id;
+    const userId = onBehalf?.actingUserId || req.user?.id;
     if (!userId) return res.status(401).json({ error: "user unauthenticated" });
 
     const user = await User.findById(userId).populate<{
@@ -827,6 +878,11 @@ export const giveConsentUser = async (
           providerUserIdentifierDocument,
           data,
           dataProcessingId,
+          // On-behalf (guardian → child): attribute the auto-registered draft
+          // consent to the child from creation so an email-less child is never
+          // left unattributed (or wrongly owned by the guardian).
+          userId,
+          onBehalf,
         });
 
       if (registerNewUserToConsumerSideResponse.error) {
@@ -854,7 +910,34 @@ export const giveConsentUser = async (
         triggerDataExchange,
       });
 
-      if (emailReattachedResponse.status !== 200) {
+      if (emailReattachedResponse?.case === "no-consumer-identifier") {
+        // Consumer has never registered this user: auto-register them on the
+        // consumer side (consumer DSC -> registrationUri) instead of failing.
+        const registerNewUserToConsumerSideResponse =
+          await registerNewUserToConsumerSide({
+            privacyNotice,
+            req,
+            providerUserIdentifier,
+            dataProvider,
+            dataConsumer,
+            providerUserIdentifierDocument,
+            data,
+            dataProcessingId,
+            // On-behalf (guardian → child): see note above.
+            userId,
+            onBehalf,
+          });
+
+        if (registerNewUserToConsumerSideResponse.error) {
+          return res
+            .status(registerNewUserToConsumerSideResponse?.status)
+            .json(registerNewUserToConsumerSideResponse?.error);
+        } else {
+          return res
+            .status(registerNewUserToConsumerSideResponse?.status)
+            .json(registerNewUserToConsumerSideResponse?.consent);
+        }
+      } else if (emailReattachedResponse.status !== 200) {
         return res
           .status(emailReattachedResponse?.status)
           .json(emailReattachedResponse?.message);
@@ -948,11 +1031,10 @@ export const giveConsentUser = async (
         recipients: privacyNotice.recipients,
         purposes: [...privacyNotice.purposes],
         data: data?.length > 0 ? data : [...privacyNotice.data],
-        status: "granted",
-        parent: parentConsentId,
-        consented: true,
+        status: "refused",
+        consented: false,
         contract: privacyNotice.contract,
-        event: [consentEvent.refused],
+        event: [{ ...consentEvent.refused, ...(onBehalf?.eventMeta ?? {}) }],
         recipientThirdParties:
           dataProcessingId && privacyNotice?.dataProcessings.length > 0
             ? privacyNotice?.dataProcessings.find(
@@ -975,7 +1057,7 @@ export const giveConsentUser = async (
         parent: parentConsentId,
         consented: true,
         contract: privacyNotice.contract,
-        event: [consentEvent.given],
+        event: [{ ...consentEvent.given, ...(onBehalf?.eventMeta ?? {}) }],
         recipientThirdParties:
           dataProcessingId && privacyNotice?.dataProcessings.length > 0
             ? privacyNotice?.dataProcessings.find(
@@ -997,6 +1079,10 @@ export const giveConsentUser = async (
           children: newConsent._id,
         },
       });
+    }
+
+    if (onBehalf?.onGranted) {
+      await onBehalf.onGranted(newConsent);
     }
 
     if (triggerDataExchange) {
@@ -1289,7 +1375,7 @@ export const triggerDataExchange = async (
   }
 };
 
-const triggerDataExchangeByConsentId = async (
+export const triggerDataExchangeByConsentId = async (
   consentId: string,
   res: Response
 ) => {
@@ -1722,6 +1808,8 @@ const registerNewUserToConsumerSide = async ({
   providerUserIdentifierDocument,
   data,
   dataProcessingId,
+  userId,
+  onBehalf,
 }: {
   privacyNotice: IPrivacyNotice & { _id: string };
   req: any;
@@ -1731,9 +1819,14 @@ const registerNewUserToConsumerSide = async ({
   providerUserIdentifierDocument: any;
   data: any;
   dataProcessingId?: string;
+  // When a guardian consents on behalf of a managed account, userId is the
+  // child and onBehalf carries the traceability metadata; both are undefined
+  // for ordinary self-consent (behaviour then identical to before).
+  userId?: string;
+  onBehalf?: GiveConsentOnBehalf;
 }): Promise<{ consent?: any; error?: string; status: number }> => {
   //draft consent
-  let consent;
+  let consent: any;
   const verifyDraftConsent = await Consent.findOne({
     privacyNotice: privacyNotice._id,
     providerUserIdentifier: providerUserIdentifier,
@@ -1747,6 +1840,10 @@ const registerNewUserToConsumerSide = async ({
     contract: privacyNotice.contract,
   });
 
+  // Whether this call created the draft/pending consent. Used to clean it up if
+  // contacting the consumer side fails, so we never leave an orphan behind.
+  const createdHere = !verifyDraftConsent;
+
   if (!verifyDraftConsent) {
     consent = new Consent({
       privacyNotice: privacyNotice._id,
@@ -1759,7 +1856,11 @@ const registerNewUserToConsumerSide = async ({
       status: req.query.triggerDataExchange ? "draft" : "pending",
       consented: false,
       contract: privacyNotice.contract,
-      event: [consentEvent.given],
+      // On-behalf only: stamp the child as the subject and carry the guardian
+      // traceability onto the event. For self-consent (onBehalf undefined) this
+      // is a no-op — no user is set and the event is a plain "given".
+      ...(onBehalf ? { user: userId } : {}),
+      event: [{ ...consentEvent.given, ...(onBehalf?.eventMeta ?? {}) }],
       recipientThirdParties: privacyNotice.dataProcessings
         .find((element) => element.catalogId.toString() === dataProcessingId)
         ?.infrastructureServices.map((infra) => infra.participant),
@@ -1769,21 +1870,29 @@ const registerNewUserToConsumerSide = async ({
     consent = verifyDraftConsent;
   }
 
-  // call new dsc endpoint
-  //login
-  const consumerLogin = await axios.post(
-    urlChecker(dataConsumer.dataspaceEndpoint, "login"),
-    {
-      serviceKey: dataConsumer.clientID,
-      secretKey: dataConsumer.clientSecret,
-    },
-    {
-      headers: { "Content-Type": "application/json" },
+  // Delete the draft/pending consent we just created when the consumer side
+  // cannot be reached, so failed attempts don't accumulate orphan consents.
+  const cleanupOrphanConsent = async () => {
+    if (createdHere && consent?._id) {
+      await Consent.deleteOne({ _id: consent._id });
     }
-  );
+  };
 
   //post to register user app side
   try {
+    // call new dsc endpoint
+    //login
+    const consumerLogin = await axios.post(
+      urlChecker(dataConsumer.dataspaceEndpoint, "login"),
+      {
+        serviceKey: dataConsumer.clientID,
+        secretKey: dataConsumer.clientSecret,
+      },
+      {
+        headers: { "Content-Type": "application/json" },
+      }
+    );
+
     const consumerRegisterUserAppSide = await axios.post(
       urlChecker(dataConsumer.dataspaceEndpoint, "private/users/app"),
       {
@@ -1803,7 +1912,15 @@ const registerNewUserToConsumerSide = async ({
         consent,
       };
     }
+
+    // Consumer reached but responded with an unexpected (non-200) status.
+    await cleanupOrphanConsent();
+    return {
+      status: 400,
+      error: "Registration Error.",
+    };
   } catch (e) {
+    await cleanupOrphanConsent();
     if (e?.response?.status === 404) {
       return {
         status: 400,
@@ -1856,9 +1973,13 @@ const emailReattached = async ({
   );
 
   if (!existingConsumerUserIdentifier) {
+    // The consumer has no identifier for this email at all (brand-new user the
+    // consumer doesn't know yet). Flag the case so callers can route it to
+    // consumer-side auto-registration instead of dead-ending here.
     return {
       message: "No user identifier found in the consumer for email " + email,
       status: 404,
+      case: "no-consumer-identifier",
     };
   } else {
     // User identifier found but not attached to the main user, requires user validation
@@ -2140,9 +2261,11 @@ export const redirectPDI = async (
               ),
             },
             {
-              status: {
-                $nin: ["terminated", "revoked"],
-              },
+              // Only an actionable (granted) consent should be surfaced to the
+              // iframe as an editable consentId. draft/pending consents are
+              // internal, user-less placeholders and would wrongly flip the UI
+              // to "Reconfirmer" for a brand-new user.
+              status: "granted",
             },
             {
               child: { $exists: false },

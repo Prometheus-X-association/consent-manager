@@ -363,6 +363,215 @@ docker exec -it consent-manager npm run test-agent
 
 For more information see the [Tests definition](https://github.com/Prometheus-X-association/consent-manager/wiki/Tests-definition).
 
+## Guardianship
+
+### 1. Purpose
+
+A minor cannot validly give consent for the processing of their personal data. The consent manager therefore allows a **legal guardian** to:
+
+- be attached to one or more **child accounts**;
+- give, view and manage consents **on behalf of** those children.
+  A consent given on behalf of a child belongs to the **child**, never to the guardian, while keeping a trace of the guardian who performed it.
+
+---
+
+### 2. Concepts
+
+| Concept               | Description                                                                                                                   |
+| :-------------------- | :---------------------------------------------------------------------------------------------------------------------------- |
+| **Guardian**          | A regular Consent user who is the legal guardian of one or more children.                                                     |
+| **Child**             | A **managed account** (no password) representing a minor. Created only through the dataspace connector.                       |
+| **Guardianship**      | The relationship between a guardian and a child. Created as **pending**, becomes **validated** once the guardian confirms it. |
+| **Consent on behalf** | A consent stored on the child (`user = childId`) whose event records `onBehalf = true` and `performedBy = guardianId`.        |
+
+> There is no endpoint or screen to create a child from PDI. Child accounts are created by the connector only.
+
+---
+
+### 3. Lifecycle
+
+```mermaid
+stateDiagram-v2
+    [*] --> Pending: Connector registers child (202)
+    Pending --> Validated: Guardian confirms via email link
+    Validated --> Consenting: Guardian selects child in consent screen
+    Consenting --> Validated: Consent recorded on the child
+    Validated --> ManagedWithPassword: "Invite to complete account" (optional)
+```
+
+1. **Pending** — the connector registers the child with a `legalGuardian`. The consent manager returns `202` and emails the guardian a validation link.
+2. **Validated** — the guardian confirms; the child appears in the guardian's _Associated users_ list with the **Managed account** badge.
+3. **Consenting** — the guardian can now consent on behalf of the child.
+4. _(Optional)_ **Invite to complete account** lets an existing managed child set their own password. It does not create a child.
+
+---
+
+### 4. Child registration (from the connector)
+
+The connector calls the consent manager to register the child and attach the guardian.
+
+**Payload received from the connector:**
+
+```json
+{
+  "firstName": "Test",
+  "lastName": "Child1",
+  "internalID": "child-001",
+  "legalGuardian": "<guardian PDI user id or guardian email>"
+}
+```
+
+| Field           | Required | Description                                          |
+| :-------------- | :------- | :--------------------------------------------------- |
+| `firstName`     | yes      | Child's first name.                                  |
+| `lastName`      | yes      | Child's last name. Displayed as "First Last" in PDI. |
+| `internalID`    | yes      | Child identifier in the participant's own system.    |
+| `legalGuardian` | yes      | Guardian identifier: PDI user id **or** email.       |
+
+**Behaviour:**
+
+- The child account is created as a managed account (no password).
+- A **pending** guardianship is created between the child and the guardian.
+- A validation email containing a tokenized link is sent to the guardian.
+- **Response:** `202 Accepted` (pending).
+  > **TODO:** document the exact consent-manager route called by the connector and the error responses (unknown guardian, duplicate `internalID`, etc.).
+
+---
+
+### 5. Guardianship validation
+
+**Link sent by email:** `<PDI_URL>/validate-guardianship?token=<TOKEN>`
+
+| Case                   | PDI behaviour                                                                                                                    |
+| :--------------------- | :------------------------------------------------------------------------------------------------------------------------------- |
+| Guardian not logged in | Shows _"You must be logged in to validate the guardianship."_ with a **Log in** link. The guardian logs in and reopens the link. |
+| Guardian logged in     | Shows **Validate guardianship** with a **Confirm** button.                                                                       |
+| After **Confirm**      | Notification _"Guardianship validated. The child now appears in your list."_ and redirect to `/private/children`.                |
+
+The token must be validated against the **logged-in guardian**: only the guardian targeted by the pending guardianship can confirm it.
+
+> **TODO:** document the validation route, token expiry and behaviour on an expired/already-used token.
+
+---
+
+### 6. Consent on behalf of a child
+
+#### Endpoint
+
+```http
+POST /guardianship/children/:childId/consents
+```
+
+Called by PDI when the guardian selects a child in the **Give this consent for** selector and clicks **Accept**.
+
+#### Rules
+
+- The caller must be authenticated as a guardian.
+- A **validated** guardianship must exist between the caller and `:childId`.
+- The consent is created with `user = childId`, not the guardian.
+- The consent event records the guardian as performer (see [section 7](#7-consent-record-structure)).
+
+#### Comparison with personal consent
+
+| Selector value       | Endpoint used                                   | Consent owner (`user`) | `onBehalf`       |
+| :------------------- | :---------------------------------------------- | :--------------------- | :--------------- |
+| **Myself** (default) | Standard personal consent endpoint              | Guardian               | `false` / absent |
+| **A child**          | `POST /guardianship/children/:childId/consents` | Child                  | `true`           |
+
+> **TODO:** document the request body, response, and error cases (no guardianship, pending guardianship, unknown child).
+
+---
+
+### 7. Consent record structure
+
+A consent given on behalf of a child must satisfy:
+
+| Field                  | Value        |
+| :--------------------- | :----------- |
+| `user`                 | `childId`    |
+| `event[0].onBehalf`    | `true`       |
+| `event[0].performedBy` | `guardianId` |
+
+Illustrative excerpt:
+
+```json
+{
+  "user": "<childId>",
+  "event": [
+    {
+      "onBehalf": true,
+      "performedBy": "<guardianId>"
+    }
+  ]
+}
+```
+
+This guarantees that:
+
+- the consent appears in the child's consent list;
+- the consent does **not** appear in the guardian's personal consent list;
+- the audit trail shows which guardian acted for the child.
+
+---
+
+### 8. PDI integration
+
+#### Pages
+
+| Page                  | URL                              | Purpose                                                                                                                                         |
+| :-------------------- | :------------------------------- | :---------------------------------------------------------------------------------------------------------------------------------------------- |
+| Associated users      | `/private/children`              | List of the guardian's children (cards with **Managed account** badge). States that new child accounts are created via the dataspace connector. |
+| Child consents        | `/private/children/:childId`     | **Consents of {child name}**, reached via **Manage consents** on a child card.                                                                  |
+| My consents           | `/private/home`                  | Guardian's own consents only.                                                                                                                   |
+| Validate guardianship | `/validate-guardianship?token=…` | Guardian confirms a pending guardianship.                                                                                                       |
+
+#### "Give this consent for" selector
+
+- Displayed in the consent window, just above the action buttons, with the description _"Choose whether you consent for yourself or on behalf of one of your children."_
+- Only shown if the guardian has **at least one validated child**.
+- Default value: **Myself**.
+- Options: **Myself** + each child displayed as "First Last".
+- **Hidden** on the per-child page (`/private/children/:childId`) and in edit mode: it is meant for the embedded/personal consent flow (the one used by the VisionsTrust Tech Space consent iframe).
+
+---
+
+### 9. Testing and verification
+
+#### Functional test
+
+1. Register a child via the connector with a known guardian → expect `202`.
+2. Confirm the guardianship from the emailed link → child visible in `/private/children`.
+3. From the VisionsTrust Tech Space consent iframe, log in as the guardian, select the child, accept.
+4. Open **Associated users** → child card → **Manage consents**.
+   - ✅ The consent is listed under the child.
+5. Open **My consents**.
+   - ✅ The consent is **not** listed for the guardian.
+
+#### Non-regression
+
+Repeat step 3 with **Myself** selected:
+
+- ✅ The consent is recorded on the guardian (normal personal consent) and appears in **My consents**.
+
+#### Database check
+
+- ✅ `user = childId`
+- ✅ `event[0].onBehalf = true`
+- ✅ `event[0].performedBy = guardianId`
+
+---
+
+### 10. Troubleshooting
+
+| Symptom                                                 | Likely cause                                                                                                        |
+| :------------------------------------------------------ | :------------------------------------------------------------------------------------------------------------------ |
+| Selector **Give this consent for** not shown            | Guardian has no validated child (child not created, or guardianship still pending).                                 |
+| Selector not shown on `/private/children/:childId`      | Expected: hidden on the per-child page and in edit mode.                                                            |
+| Child missing from _Associated users_                   | Guardianship not confirmed yet, or `legalGuardian` did not match the guardian's id/email.                           |
+| _"You must be logged in to validate the guardianship."_ | Log in as the guardian, then reopen the email link.                                                                 |
+| Consent appears under the guardian instead of the child | **Myself** was selected, or the standard endpoint was called instead of `/guardianship/children/:childId/consents`. |
+| Looking for "Add child" in PDI                          | By design, children are created only through the connector.                                                         |
+
 ## Contributing
 
 We welcome contributions to the Prometheus-X Consent Manager. If you encounter a bug or wish to propose a new feature, kindly open an issue in the GitHub repository. For code contributions, fork the repository, create a new branch, make your changes, and submit a pull request.

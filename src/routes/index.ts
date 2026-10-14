@@ -10,6 +10,7 @@ import consentRouter from "./consent";
 import usersRouter from "./users";
 import participantsRouter from "./participants";
 import dataExchangeRouter from "./dataExchange";
+import guardianshipRouter from "./guardianship";
 import { verifyUserJWT } from "../middleware/auth";
 import { ConsentAgentRouter } from "contract-agent";
 
@@ -24,6 +25,7 @@ export const loadRoutes = (app: Application) => {
   app.use(API_PREFIX + "/users", usersRouter);
   app.use(API_PREFIX + "/participants", participantsRouter);
   app.use(API_PREFIX + "/data-exchange", dataExchangeRouter);
+  app.use(API_PREFIX + "/guardianship", guardianshipRouter);
 
   app.use(API_PREFIX + "/", verifyUserJWT, ConsentAgentRouter);
 
